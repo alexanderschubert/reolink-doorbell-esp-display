@@ -102,9 +102,9 @@ void ui_saver_tick() {
   {
     char sb[64];
     const bool ok = cfg.door && !strcmp(door_status(), "verbunden");
-    if (!cfg.door) snprintf(sb, sizeof sb, "Türklingel aus");
-    else if (ok) snprintf(sb, sizeof sb, "Klingel bereit");
-    else snprintf(sb, sizeof sb, "Klingel: %s", door_status());
+    if (!cfg.door) snprintf(sb, sizeof sb, "Türspion aus");
+    else if (ok) snprintf(sb, sizeof sb, "Türspion bereit");
+    else snprintf(sb, sizeof sb, "Türspion: %s", door_status());
     lv_label_set_text(ssStat, sb);
     lv_label_set_text(ssIcon, IC_BELL);
     lv_obj_set_style_text_color(ssIcon, lv_color_hex(ok ? 0x22c55e : 0x7d8aa8), 0);

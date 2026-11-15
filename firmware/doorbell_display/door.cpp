@@ -13,7 +13,7 @@
 #include "net.h"
 
 // Bewegung: Abfrage der Klingel per HTTP (GetEvents, ältere Firmware: GetMdState), einmal pro Sekunde.
-// Bild: Snap der Klingel (Substream) oder eine eigene JPEG-Adresse; dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3.
+// Bild: Snap des Türspions (Substream) oder eine eigene JPEG-Adresse; dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3.
 static const size_t JPG_MAX = 512 * 1024;
 static const int POOL = 8192;
 static const uint32_t CAP_MS = 300000;      // so lange höchstens am Stück, auch bei Dauerbewegung
@@ -32,7 +32,7 @@ static char rawText[150] = "";
 static char outText[260];
 static volatile time_t lastMotionT = 0;
 static WiFiClient plain;
-static WiFiClientSecure secure;              // die Klingel hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
+static WiFiClientSecure secure;              // der Türspion hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
 static HTTPClient http;
 
 static void set_status(const char *fmt, ...) {
@@ -109,7 +109,7 @@ static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post =
   int code;
   if (post) { http.addHeader("Content-Type", "application/json"); code = http.POST((uint8_t *)post, strlen(post)); }
   else code = http.GET();
-  if (code != 200) { set_status("Klingel antwortet mit %d", code); http.end(); cl.stop(); return -1; }
+  if (code != 200) { set_status("Türspion antwortet mit %d", code); http.end(); cl.stop(); return -1; }
   BufStream bs(dst, cap);
   http.writeToStream(&bs);
   http.end();                                // bei reuse bleibt die Verbindung offen
@@ -188,7 +188,7 @@ static int poll_motion() {
     return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") || strstr(b, "alarm_state\" : 1") || strstr(b, "alarm_state\":1") ||
            strstr(b, "\"visitor\" : 1") || strstr(b, "\"visitor\":1") ? 1 : 0;
   }
-  if (token.length()) set_status("Klingel versteht die Abfrage nicht");
+  if (token.length()) set_status("Türspion versteht die Abfrage nicht");
   return -1;
 }
 

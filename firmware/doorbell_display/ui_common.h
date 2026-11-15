@@ -32,7 +32,7 @@ void ui_theme_apply(bool light);
 
 #define PAGE_H (SCREEN_H - 56)          // Höhe einer Seite, darunter liegt die Navigationsleiste
 
-extern const lv_font_t *f12, *f14, *f16, *f20, *f28, *f36b, *fClock;
+extern const lv_font_t *f12, *f14, *f16, *f20, *f28, *f36b, *fClock, *fHome;
 extern const lv_font_t *fi14, *fi16, *fi20, *fi28;     // Symbolschrift (icons.h)
 
 // Bausteine

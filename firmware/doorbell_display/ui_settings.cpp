@@ -165,7 +165,7 @@ static lv_obj_t *stepper(lv_obj_t *p, int y, const char *glyph, const char *titl
 // Kacheln auf der Startansicht, dahinter je ein Untermenü ohne Scrollen
 static lv_obj_t *home, *grp[6], *backBtn, *tileSub[6];
 static int curGrp = -1;       // bleibt beim Neuaufbau (Themawechsel) erhalten
-static const char *GRP_NAME[6] = {"Darstellung", "Bildschirmschoner", "Nachtmodus", "Dieses Display", "Türklingel", "Nuki-Schloss"};
+static const char *GRP_NAME[6] = {"Darstellung", "Bildschirmschoner", "Nachtmodus", "Dieses Display", "Türspion", "Nuki-Schloss"};
 
 static void show_grp(int g) {
   curGrp = g;
@@ -236,14 +236,14 @@ void page_settings_build(lv_obj_t *p) {
   lv_obj_t *c3 = row_card(grp[2], y, IC_TV, "Display ausschalten", "Nachts die Beleuchtung ganz abschalten, statt die Uhr zu zeigen");
   swOff = toggle(c3, 1, prefs.nightOff);
 
-  // Türklingel
+  // Türspion
   y = 88;
-  lv_obj_t *cd = row_card(grp[4], y, IC_BELL, "Live-Bild bei Bewegung", "Zeigt das Bild der Klingel, Berührung schließt es");
+  lv_obj_t *cd = row_card(grp[4], y, IC_BELL, "Live-Bild bei Bewegung", "Zeigt das Bild des Türspions, Berührung schließt es");
   swDoor = toggle(cd, 2, cfg.door); y += dy;
   vDoorSecs = stepper(grp[4], y, IC_HOURGLASS, "Anzeigedauer", "Ab der letzten erkannten Bewegung", 20); y += dy;
   lv_obj_t *cs = solid_card(grp[4], y, 120);
   infoDoor = ui_icon_text(cs, IC_BELL, C_ACC, " ", f14, C_TEXT, 22, 12);
-  ui_label(cs, f14, C_DM, "Adresse und Zugang der Klingel trägst du auf der Webseite des Displays ein", 22, 38);
+  ui_label(cs, f14, C_DM, "Adresse und Zugang des Türspions trägst du auf der Webseite des Displays ein", 22, 38);
   ui_button(cs, 22, 58, 170, 32, "Jetzt testen", C_ACC, [](lv_event_t *) { door_test(); }, nullptr);
   infoStats = ui_label_w(cs, f14, C_DM, " ", 22, 96, 690, LV_TEXT_ALIGN_LEFT);
 
@@ -340,7 +340,7 @@ static void info_tick() {
   if (WiFi.status() != WL_CONNECTED) snprintf(b, sizeof b, "Bilder hochladen: erst mit WLAN möglich");
   else snprintf(b, sizeof b, "Bilder hochladen: http://%s/  (%d von %d Plätzen belegt)", WiFi.localIP().toString().c_str(), img_count(), IMG_SLOTS);
   lv_label_set_text(infoWeb, b);
-  snprintf(b, sizeof b, "Klingel: %s · %s", cfg.dhost.length() ? cfg.dhost.c_str() : "keine Adresse", door_status());
+  snprintf(b, sizeof b, "Türspion: %s · %s", cfg.dhost.length() ? cfg.dhost.c_str() : "keine Adresse", door_status());
   lv_label_set_text(infoDoor, b);
   lv_label_set_text(infoStats, door_stats());
   const NukiInfo n = nuki_get();
@@ -436,5 +436,5 @@ void ui_setup_show() {
   ui_label_w(o, f28, 0x6cb8ff, b, 0, 232, SCREEN_W, LV_TEXT_ALIGN_CENTER);
   ui_label_w(o, f20, 0xa9b4d0, "2. Im Browser öffnen:", 0, 296, SCREEN_W, LV_TEXT_ALIGN_CENTER);
   ui_label_w(o, f28, 0xeef0f4, "http://192.168.4.1", 0, 328, SCREEN_W, LV_TEXT_ALIGN_CENTER);
-  ui_label_w(o, f16, 0x7d8aa8, "3. WLAN eintragen (Klingel später) und speichern", 0, 396, SCREEN_W, LV_TEXT_ALIGN_CENTER);
+  ui_label_w(o, f16, 0x7d8aa8, "3. WLAN eintragen (Türspion später) und speichern", 0, 396, SCREEN_W, LV_TEXT_ALIGN_CENTER);
 }

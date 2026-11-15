@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <time.h>
 
-// Türklingel (Reolink): erkennt Bewegung und holt dann JPEG-Einzelbilder in schneller Folge. Das Netzwerk und das
+// Türspion (Reolink): erkennt Bewegung und holt dann JPEG-Einzelbilder in schneller Folge. Das Netzwerk und das
 // Dekodieren laufen in einem eigenen Task; die Oberfläche (ui_door.cpp) zeigt nur das fertige Bild.
 void door_begin();
 bool door_wanted();                         // das Bild soll gerade angezeigt werden

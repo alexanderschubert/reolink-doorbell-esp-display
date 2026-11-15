@@ -46,7 +46,7 @@ void web_pin_new() {
 static bool authed() {
   if (net_setup()) return true;           // Einrichtung: das WLAN des Displays ist selbst durch ein Passwort geschützt
   if (server.authenticate("display", web_pin().c_str())) return true;
-  server.requestAuthentication(BASIC_AUTH, "Türklingel-Display", "Benutzer: display, Passwort: die PIN aus den Einstellungen des Displays");
+  server.requestAuthentication(BASIC_AUTH, "Türspion-Display", "Benutzer: display, Passwort: die PIN aus den Einstellungen des Displays");
   return false;
 }
 
@@ -84,7 +84,7 @@ bool img_read(int slot, uint8_t *buf) {
 }
 
 static const char PAGE[] PROGMEM = R"HTML(<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Türklingel-Display · Bilder</title>
+<title>Türspion-Display · Bilder</title>
 <style>
 body{font:16px system-ui,sans-serif;background:#0b1226;color:#eef0f4;margin:0;padding:20px;max-width:900px;margin:auto}
 h1{font-size:24px;margin:0 0 4px}p{color:#a9b4d0;margin:6px 0 16px}
@@ -101,7 +101,7 @@ input[type=range]{width:180px}
 input[type=password]{background:#0b1226;color:#eef0f4;border:1px solid #ffffff44;border-radius:8px;padding:6px 8px;font:inherit;width:150px}
 #st{margin:12px 0;color:#a9b4d0;min-height:22px}
 </style>
-<h1>Türklingel-Display</h1><p><a href="/setup" style="color:#6cb8ff">Verbindung ändern (WLAN, Türklingel, Nuki)</a></p>
+<h1>Türspion-Display</h1><p><a href="/setup" style="color:#6cb8ff">Verbindung ändern (WLAN, Türspion, Nuki)</a></p>
 <p>Bis zu acht Bilder. Sie werden auf 800 × 480 zugeschnitten und im Display gespeichert. Welches Bild der Hintergrund ist und ob der Bildschirmschoner sie zeigt, stellst du am Display unter Einstellungen ein.</p>
 <h2>Einstellungen</h2><div id="s" class="c"></div>
 <h2>Bilder</h2><label class="up">Bilder auswählen<input id="f" type="file" accept="image/*" multiple hidden></label>
@@ -122,7 +122,7 @@ async function prefs(){const p=await (await fetch('/api/prefs')).json(),s=$('#s'
   row('Hintergrundbild',sel('bg',bg,p.bg))+row('Abdunklung des Bildes',rng('dim',0,90,p.dim))+
   row('Bildschirmschoner',sel('saver',[[0,'Aus'],[1,'Uhr'],[2,'Bilder']],p.saver))+row('Starten nach',sel('saverMin',MINS.map(m=>[m,m+' min']),p.saverMin))+row('Helligkeit im Schoner',rng('saverBright',10,100,p.saverBright))+
   row('Nachtmodus',chk('nightOn',p.nightOn))+row('Nachts von',tm('nightFrom',p.nightFrom))+row('bis',tm('nightTo',p.nightTo))+row('Display nachts ausschalten',chk('nightOff',p.nightOff))+
-  row('Türklingel: Live-Bild bei Bewegung',chk('doorOn',p.doorOn))+row('Anzeigedauer',sel('doorSecs',DS.map(m=>[m,m+' s']),p.doorSecs))+row('Türbild ausprobieren','<button id="dt">Jetzt zeigen</button>')+
+  row('Türspion: Live-Bild bei Bewegung',chk('doorOn',p.doorOn))+row('Anzeigedauer',sel('doorSecs',DS.map(m=>[m,m+' s']),p.doorSecs))+row('Türbild ausprobieren','<button id="dt">Jetzt zeigen</button>')+
   row('Nuki-Schloss auf der Startseite',chk('nukiOn',p.nukiOn))+row('Schloss am Display bedienen (auf-/zuschließen)',chk('nukiCtl',p.nukiCtl))+
   row('Nuki API-Token'+(p.nukiTok?' (gespeichert)':''),'<input type="password" id="nt" placeholder="neuer Token" autocomplete="new-password"><button id="ntb">Speichern</button>');
  $('#ntb').onclick=async()=>{const v=$('#nt').value.trim();if(v){await save({ntoken:v});prefs()}};
@@ -161,22 +161,22 @@ static String esc(const String &s) {
   return o;
 }
 
-// Einrichtungsseite: WLAN und Türklingel. Leere Kennwortfelder behalten das gespeicherte Kennwort.
+// Einrichtungsseite: WLAN und Türspion. Leere Kennwortfelder behalten das gespeicherte Kennwort.
 static void handle_setup() {
   if (!authed()) return;
-  String h = F("<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Türklingel-Display · Verbindung</title>"
+  String h = F("<!doctype html><html lang=de><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Türspion-Display · Verbindung</title>"
                "<style>body{font:16px system-ui,sans-serif;background:#0b1226;color:#eef0f4;max-width:520px;margin:auto;padding:20px}label{display:block;margin:14px 0 4px;color:#a9b4d0}"
                "input[type=text],input[type=password],input[type=number]{width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid #ffffff44;background:#ffffff14;color:#eef0f4;font:inherit}"
                "button{margin-top:22px;padding:12px 22px;border-radius:22px;border:1px solid #6cb8ffb3;background:#6cb8ff33;color:#eef0f4;font:inherit;cursor:pointer}p{color:#a9b4d0}</style>"
-               "<h1>Verbindung</h1><p>Trage das WLAN und die Zugangsdaten der Klingel ein. Nach dem Speichern startet das Display neu.</p>"
+               "<h1>Verbindung</h1><p>Trage das WLAN und die Zugangsdaten des Türspions ein. Nach dem Speichern startet das Display neu.</p>"
                "<form method=post action=/save>");
   h += "<label>WLAN (Name)</label><input type=text name=ssid value=\"" + esc(cfg.ssid) + "\" required>";
   h += "<label>WLAN-Kennwort" + String(cfg.pass.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=pass autocomplete=new-password>";
-  h += "<h2>Türklingel (Reolink)</h2><p>Zeigt bei Bewegung das Live-Bild. Empfohlen: ein eigener Benutzer auf der Klingel. Ein-/Ausschalten und die Anzeigedauer stehen auf der Startseite.</p>";
-  h += "<label>Adresse der Klingel (IP; die Klingel antwortet meist nur auf HTTPS, das nutzt das Display selbst)</label><input type=text name=dhost value=\"" + esc(cfg.dhost) + "\" placeholder=\"192.168.1.20\">";
+  h += "<h2>Türspion (Reolink)</h2><p>Zeigt bei Bewegung das Live-Bild. Empfohlen: ein eigener Benutzer auf dem Türspion. Ein-/Ausschalten und die Anzeigedauer stehen auf der Startseite.</p>";
+  h += "<label>Adresse des Türspions (IP; der Türspion antwortet meist nur auf HTTPS, das nutzt das Display selbst)</label><input type=text name=dhost value=\"" + esc(cfg.dhost) + "\" placeholder=\"192.168.1.20\">";
   h += "<label>Benutzer</label><input type=text name=duser value=\"" + esc(cfg.duser) + "\" autocomplete=off>";
   h += "<label>Kennwort" + String(cfg.dpass.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=dpass autocomplete=new-password>";
-  h += "<label>Eigene Bildadresse (optional, JPEG per http, z. B. von go2rtc; sonst holt das Display das Bild bei der Klingel)</label><input type=text name=durl value=\"" + esc(cfg.durl) + "\">";
+  h += "<label>Eigene Bildadresse (optional, JPEG per http, z. B. von go2rtc; sonst holt das Display das Bild beim Türspion)</label><input type=text name=durl value=\"" + esc(cfg.durl) + "\">";
   h += "<h2>Nuki-Schloss</h2><p>Erzeuge auf web.nuki.io unter „API &amp; Integrationen“ einen API-Token (zum Anzeigen genügt das Recht zum Lesen, zum Bedienen braucht er auch das Recht zum Ausführen von Aktionen) und trage ihn hier ein. Ein-/Ausschalten geht am Display oder auf der Startseite der Webseite.</p>";
   h += "<label>API-Token" + String(cfg.ntoken.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=ntoken autocomplete=new-password>";
   h += "<button>Speichern und neu starten</button></form></html>";
