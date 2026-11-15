@@ -7,6 +7,7 @@
 #include <rom/tjpgd.h>
 
 #include "cfg.h"
+#include "httputil.h"
 #include "config.h"
 #include "net.h"
 
@@ -30,17 +31,6 @@ static volatile time_t lastMotionT = 0;
 static WiFiClient plain;
 static WiFiClientSecure secure;              // die Klingel hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
 static HTTPClient http;
-
-// Antwort in einen festen Puffer sammeln (auch bei "chunked"-Übertragung)
-struct BufStream : public Stream {
-  uint8_t *d; size_t cap, n; bool over;
-  BufStream(uint8_t *b, size_t c) : d(b), cap(c), n(0), over(false) {}
-  size_t write(uint8_t c) override { if (n < cap) { d[n++] = c; return 1; } over = true; return 0; }
-  size_t write(const uint8_t *b, size_t l) override { if (n + l > cap) { over = true; return 0; } memcpy(d + n, b, l); n += l; return l; }
-  int available() override { return 0; }
-  int read() override { return -1; }
-  int peek() override { return -1; }
-};
 
 static void set_status(const char *fmt, ...) {
   va_list a;
@@ -101,21 +91,6 @@ static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post =
   http.end();                                // bei reuse bleibt die Verbindung offen
   if (bs.over || bs.n == 0) { cl.stop(); set_status(bs.over ? "Antwort zu groß" : "Antwort leer"); return -1; }
   return (int)bs.n;
-}
-
-// Wert zu "key" : "wert" bzw. "key" : zahl aus der JSON-Antwort (ohne JSON-Bibliothek)
-static String json_val(const char *b, const char *key, const char *from = nullptr) {
-  String k = String("\"") + key + "\"";
-  const char *p = strstr(from ? from : b, k.c_str());
-  if (!p) return "";
-  p = strchr(p + k.length(), ':');
-  if (!p) return "";
-  p++;
-  while (*p == ' ' || *p == '\t' || *p == '\n') p++;
-  String v;
-  if (*p == '"') { p++; while (*p && *p != '"' && v.length() < 60) v += *p++; }
-  else while (*p && *p != ',' && *p != '}' && *p != '\n' && *p != ' ' && v.length() < 20) v += *p++;
-  return v;
 }
 
 // Kurzfassung eines Fehlers der Klingel für die Anzeige: Befehl, rspCode und Text

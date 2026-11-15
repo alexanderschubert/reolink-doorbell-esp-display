@@ -8,6 +8,7 @@
 
 #include "config.h"
 #include "door.h"
+#include "nuki.h"
 #include "net.h"
 #include "ui.h"
 #include "ui_common.h"
@@ -80,6 +81,7 @@ void setup() {
   img_begin();                                  // Bilderspeicher einhängen (beim ersten Start wird er formatiert)
   net_begin();
   door_begin();
+  nuki_begin();
   if (net_setup()) {                            // noch nicht eingerichtet: Anleitung zeigen
     esp_lv_adapter_lock(-1);
     ui_setup_show();

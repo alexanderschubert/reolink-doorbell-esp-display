@@ -9,6 +9,8 @@ struct Cfg {
   bool door;      // Live-Bild bei Bewegung an
   int dsecs;      // Anzeigedauer in Sekunden (ab der letzten erkannten Bewegung)
   String dhost, duser, dpass;   // Adresse (IP, optional :Port) und Zugang der Klingel
+  bool nuki;      // Nuki-Schloss auf der Startseite zeigen
+  String ntoken;  // API-Token der Nuki-Web-API
   String durl;    // optional: eigene Adresse für das JPEG-Bild (z. B. go2rtc, Frigate), statt Snap der Klingel
 };
 extern Cfg cfg;

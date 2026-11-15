@@ -8,6 +8,7 @@
 #include "cfg.h"
 #include "door.h"
 #include "net.h"
+#include "nuki.h"
 #include "ui_common.h"
 
 const lv_font_t *f12, *f14, *f16, *f20, *f28, *f36b, *fClock;
@@ -21,6 +22,7 @@ static lv_obj_t *navIcon[2], *navText[2];
 
 // Startseite: Uhr, Datum und der Zustand der Klingel
 static lv_obj_t *clockL, *dateL, *statusIcon, *statusL, *motionL, *stateL;
+static lv_obj_t *nukiIcon, *nukiName, *nukiState, *nukiDoor, *nukiBat, *nukiNote;
 
 static int curPage = 0;
 static void refresh_page(int i);
@@ -44,13 +46,25 @@ static void build_start(lv_obj_t *p) {
   clockL = ui_label(p, fClock, C_TEXT, "--:--", 30, 6);
   dateL = ui_label(p, f20, C_MU, " ", 34, 98);
 
-  lv_obj_t *card = ui_glass(p, 32, 170, 736, 190, 20);
-  statusIcon = ui_icon(card, fi28, C_DM, IC_BELL, 28, 26);
-  ui_label(card, f28, C_TEXT, "Türklingel", 84, 22);
-  statusL = ui_label_w(card, f20, C_MU, " ", 84, 64, 620, LV_TEXT_ALIGN_LEFT);
-  motionL = ui_label_w(card, f20, C_MU, " ", 84, 98, 620, LV_TEXT_ALIGN_LEFT);
-  stateL = ui_label_w(card, f14, C_DM, " ", 84, 132, 400, LV_TEXT_ALIGN_LEFT);
-  ui_button(card, 520, 128, 190, 40, "Live-Bild zeigen", C_ACC, show_cb, nullptr);
+  // Linke Karte: Türklingel
+  lv_obj_t *card = ui_glass(p, 32, 150, 358, 250, 20);
+  statusIcon = ui_icon(card, fi28, C_DM, IC_BELL, 22, 18);
+  ui_label(card, f28, C_TEXT, "Türklingel", 66, 14);
+  statusL = ui_label_w(card, f16, C_MU, " ", 22, 66, 316, LV_TEXT_ALIGN_LEFT);
+  lv_obj_set_height(statusL, 60);
+  motionL = ui_label_w(card, f16, C_MU, " ", 22, 136, 316, LV_TEXT_ALIGN_LEFT);
+  stateL = ui_label_w(card, f14, C_DM, " ", 22, 164, 316, LV_TEXT_ALIGN_LEFT);
+  ui_button(card, 22, 198, 190, 38, "Live-Bild zeigen", C_ACC, show_cb, nullptr);
+
+  // Rechte Karte: Nuki-Schloss
+  lv_obj_t *nk = ui_glass(p, 410, 150, 358, 250, 20);
+  nukiIcon = ui_icon(nk, fi28, C_DM, IC_SHIELD, 22, 18);
+  nukiName = ui_label_w(nk, f28, C_TEXT, "Schloss", 66, 14, 280, LV_TEXT_ALIGN_LEFT);
+  nukiState = ui_label_w(nk, f28, C_TEXT, " ", 22, 76, 316, LV_TEXT_ALIGN_LEFT);
+  nukiDoor = ui_label_w(nk, f16, C_MU, " ", 22, 126, 316, LV_TEXT_ALIGN_LEFT);
+  nukiBat = ui_label_w(nk, f16, C_MU, " ", 22, 156, 316, LV_TEXT_ALIGN_LEFT);
+  nukiNote = ui_label_w(nk, f14, C_DM, " ", 22, 196, 316, LV_TEXT_ALIGN_LEFT);
+  lv_obj_set_height(nukiNote, 40);
 }
 
 // TinyTTF legt den Cache für (Cachegröße / Schriftgröße²) Zeichen an: zu klein gewählt sind es null Einträge und das
@@ -180,6 +194,7 @@ void ui_init() {
 }
 
 static void refresh_start();
+static void refresh_nuki();
 
 void ui_tick() {
   if (!clockL) return;
@@ -205,7 +220,7 @@ void ui_tick() {
   ui_saver_tick();
   ui_night_tick();
   page_tick();
-  if (curPage == 0) refresh_start();
+  if (curPage == 0) { refresh_start(); refresh_nuki(); }
 }
 
 static void refresh_start() {
@@ -230,8 +245,45 @@ static void refresh_start() {
   lv_label_set_text(stateL, b);
 }
 
+static void refresh_nuki() {
+  char b[96];
+  if (!cfg.nuki) {
+    lv_label_set_text(nukiName, "Schloss");
+    lv_label_set_text(nukiState, "Aus");
+    lv_label_set_text(nukiDoor, " ");
+    lv_label_set_text(nukiBat, " ");
+    lv_label_set_text(nukiNote, "Einstellungen > Nuki, Token auf der Webseite");
+    lv_obj_set_style_text_color(nukiIcon, lv_color_hex(C_DM), 0);
+    return;
+  }
+  const NukiInfo n = nuki_get();
+  if (!cfg.ntoken.length()) { lv_label_set_text(nukiState, "Token fehlt"); lv_label_set_text(nukiNote, "Auf der Webseite des Displays eintragen"); lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiBat, " "); return; }
+  if (!n.valid) {
+    lv_label_set_text(nukiState, n.err[0] ? "Keine Daten" : "Wird abgefragt …");
+    lv_label_set_text(nukiDoor, " ");
+    lv_label_set_text(nukiBat, " ");
+    lv_label_set_text(nukiNote, n.err);
+    lv_obj_set_style_text_color(nukiIcon, lv_color_hex(C_DM), 0);
+    return;
+  }
+  lv_label_set_text(nukiName, n.name[0] ? n.name : "Schloss");
+  lv_label_set_text(nukiState, nuki_state_text(n.state));
+  const bool locked = n.state == 1, bad = n.state == 254 || n.state == 0;
+  lv_obj_set_style_text_color(nukiIcon, lv_color_hex(bad ? C_HOT : locked ? C_OK : C_WARM), 0);
+  lv_obj_set_style_text_color(nukiState, lv_color_hex(bad ? C_HOT : locked ? C_TEXT : C_WARM), 0);
+  lv_label_set_text(nukiDoor, n.door == 2 ? "Tür: geschlossen" : n.door == 3 ? "Tür: offen" : "Tür: kein Sensor");
+  if (n.battery >= 0) snprintf(b, sizeof b, "Batterie: %d %%%s", n.battery, n.critical ? " (schwach!)" : "");
+  else snprintf(b, sizeof b, "Batterie: –");
+  lv_label_set_text(nukiBat, b);
+  lv_obj_set_style_text_color(nukiBat, lv_color_hex(n.critical ? C_HOT : C_MU), 0);
+  const uint32_t age = (millis() - n.at) / 1000;
+  if (n.err[0]) snprintf(b, sizeof b, "%s", n.err);
+  else snprintf(b, sizeof b, "Stand vor %u s", (unsigned)age);
+  lv_label_set_text(nukiNote, b);
+}
+
 static void refresh_page(int i) {
-  if (i == 0) refresh_start(); else page_settings_refresh();
+  if (i == 0) { refresh_start(); refresh_nuki(); } else page_settings_refresh();
 }
 
 void ui_refresh() {

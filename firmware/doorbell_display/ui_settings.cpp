@@ -4,6 +4,8 @@
 
 #include "cfg.h"
 #include "door.h"
+#include "nuki.h"
+#include "ui.h"
 #include "net.h"
 #include "ui_common.h"
 
@@ -45,7 +47,7 @@ void prefs_save() {
   p.end();
 }
 
-static lv_obj_t *swDoor, *vDoorSecs, *infoDoor;
+static lv_obj_t *swDoor, *vDoorSecs, *infoDoor, *infoNuki;
 static lv_obj_t *swNight, *swOff, *fromL, *toL, *infoWifi, *infoIp, *infoFw, *infoMem, *infoSub, *infoWeb;
 static lv_obj_t *vTheme, *vBg, *vDim, *vSaver, *vMin, *vBright, *vSBright, *infoPin;
 static lv_obj_t *overlay, *ovClock, *ovDate;
@@ -57,6 +59,7 @@ static void hhmm(char *b, size_t n, int m) { m = (m % 1440 + 1440) % 1440; snpri
 static void sw_cb(lv_event_t *e) {
   const int id = (int)(intptr_t)lv_event_get_user_data(e);
   const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  if (id == 3) { cfg.nuki = on; cfg_save_door(); nuki_refresh(); ui_refresh(); return; }
   if (id == 2) { cfg.door = on; cfg_save_door(); page_settings_refresh(); return; }
   if (id == 0) prefs.nightOn = on; else prefs.nightOff = on;
   prefs_save();
@@ -159,14 +162,14 @@ static lv_obj_t *stepper(lv_obj_t *p, int y, const char *glyph, const char *titl
 }
 
 // Kacheln auf der Startansicht, dahinter je ein Untermenü ohne Scrollen
-static lv_obj_t *home, *grp[5], *backBtn, *tileSub[5];
+static lv_obj_t *home, *grp[6], *backBtn, *tileSub[6];
 static int curGrp = -1;       // bleibt beim Neuaufbau (Themawechsel) erhalten
-static const char *GRP_NAME[5] = {"Darstellung", "Bildschirmschoner", "Nachtmodus", "Dieses Display", "Türklingel"};
+static const char *GRP_NAME[6] = {"Darstellung", "Bildschirmschoner", "Nachtmodus", "Dieses Display", "Türklingel", "Nuki-Schloss"};
 
 static void show_grp(int g) {
   curGrp = g;
   if (home) { if (g < 0) lv_obj_clear_flag(home, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(home, LV_OBJ_FLAG_HIDDEN); }
-  for (int i = 0; i < 5; i++) { if (i == g) lv_obj_clear_flag(grp[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp[i], LV_OBJ_FLAG_HIDDEN); }
+  for (int i = 0; i < 6; i++) { if (i == g) lv_obj_clear_flag(grp[i], LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(grp[i], LV_OBJ_FLAG_HIDDEN); }
   if (g < 0) lv_obj_add_flag(backBtn, LV_OBJ_FLAG_HIDDEN); else lv_obj_clear_flag(backBtn, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(infoSub, g < 0 ? "Werden auf diesem Display gespeichert" : GRP_NAME[g]);
 }
@@ -198,7 +201,7 @@ static void newpin_cb(lv_event_t *) { web_pin_new(); info_tick(); }
 
 void page_settings_build(lv_obj_t *p) {
   ui_page_title(p, "Einstellungen", &infoSub);
-  for (int i = 0; i < 5; i++) grp[i] = ui_plain(p, 0, 0, SCREEN_W, PAGE_H);
+  for (int i = 0; i < 6; i++) grp[i] = ui_plain(p, 0, 0, SCREEN_W, PAGE_H);
   const int dy = 68;
 
   // Darstellung: Thema, Helligkeit, Hintergrundbild, Abdunklung
@@ -242,6 +245,15 @@ void page_settings_build(lv_obj_t *p) {
   ui_label(cs, f14, C_DM, "Adresse und Zugang der Klingel trägst du auf der Webseite des Displays ein", 22, 38);
   ui_button(cs, 22, 58, 170, 32, "Jetzt testen", C_ACC, [](lv_event_t *) { door_test(); }, nullptr);
 
+  // Nuki-Schloss
+  y = 88;
+  lv_obj_t *ck = row_card(grp[5], y, IC_SHIELD, "Schloss auf der Startseite", "Zeigt Zustand, Tür und Batterie deines Nuki-Schlosses");
+  toggle(ck, 3, cfg.nuki); y += dy;
+  lv_obj_t *cn = solid_card(grp[5], y, 96);
+  infoNuki = ui_icon_text(cn, IC_SHIELD, C_ACC, " ", f14, C_TEXT, 22, 12);
+  ui_label(cn, f14, C_DM, "Den API-Token (web.nuki.io, API & Integrationen) trägst du auf der Webseite des Displays ein", 22, 38);
+  ui_button(cn, 22, 58, 170, 32, "Jetzt abfragen", C_ACC, [](lv_event_t *) { nuki_refresh(); }, nullptr);
+
   // Dieses Display
   lv_obj_t *info = solid_card(grp[3], 96, 148);
   ui_icon_text(info, IC_TV, C_ACC, "Dieses Display", f14, C_MU, 22, 10);
@@ -260,6 +272,7 @@ void page_settings_build(lv_obj_t *p) {
   tile_btn(home, 32, 204, IC_MOON, GRP_NAME[2], 2);
   tile_btn(home, 410, 204, IC_MICROCHIP, GRP_NAME[3], 3);
   tile_btn(home, 32, 324, IC_BELL, GRP_NAME[4], 4);
+  tile_btn(home, 410, 324, IC_SHIELD, GRP_NAME[5], 5);
 
   backBtn = ui_button(p, 440, 16, 140, 40, "Zurück", C_ACC, back_cb, nullptr);
   show_grp(curGrp);
@@ -300,6 +313,7 @@ void page_settings_refresh() {
     lv_label_set_text(tileSub[3], "WLAN, Adresse, Firmware, Speicher");
     snprintf(t, sizeof t, cfg.door ? "An · %d s" : "Aus", cfg.dsecs);
     lv_label_set_text(tileSub[4], t);
+    lv_label_set_text(tileSub[5], cfg.nuki ? (cfg.ntoken.length() ? "An" : "An · Token fehlt") : "Aus");
   }
 }
 
@@ -322,6 +336,13 @@ static void info_tick() {
   lv_label_set_text(infoWeb, b);
   snprintf(b, sizeof b, "Klingel: %s · %s", cfg.dhost.length() ? cfg.dhost.c_str() : "keine Adresse", door_status());
   lv_label_set_text(infoDoor, b);
+  const NukiInfo n = nuki_get();
+  if (!cfg.nuki) snprintf(b, sizeof b, "Nuki: aus");
+  else if (!cfg.ntoken.length()) snprintf(b, sizeof b, "Nuki: Token fehlt");
+  else if (n.err[0]) snprintf(b, sizeof b, "Nuki: %s", n.err);
+  else if (n.valid) snprintf(b, sizeof b, "Nuki: %s · %s", n.name, nuki_state_text(n.state));
+  else snprintf(b, sizeof b, "Nuki: wird abgefragt …");
+  lv_label_set_text(infoNuki, b);
 }
 
 void page_tick() { info_tick(); }
