@@ -14,7 +14,7 @@ Ein Touch-Display, das bei Bewegung vor der Haustür das **Live-Bild deiner Reol
 ## Voraussetzungen
 
 - Waveshare ESP32-S3-Touch-LCD-5 (800×480, 16 MB Flash, 8 MB PSRAM).
-- Reolink-Türklingel im selben Netz, HTTP-Zugang aktiv. Am besten ein eigener Benutzer auf der Klingel. Das Kennwort geht im Heimnetz im Klartext per HTTP an die Klingel.
+- Reolink-Türklingel im selben Netz, Web-Zugang aktiv. Am besten ein eigener Benutzer auf der Klingel. Das Display spricht HTTPS mit der Klingel (ihr selbst signiertes Zertifikat wird nicht geprüft); "http://" vor der Adresse erzwingt HTTP.
 
 ## Aufspielen und einrichten
 
@@ -43,7 +43,7 @@ cd firmware
 
 ## Technik
 
-- Bewegung: HTTP-API der Klingel, `GetEvents` (ältere Firmware: `GetMdState`).
+- Bewegung: HTTP(S)-API der Klingel, `GetEvents` (ältere Firmware: `GetMdState`).
 - Bild: `Snap` (Substream) in schneller Folge, dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3 in den PSRAM (nur Baseline-JPEG), Anzeige per LVGL auf einer eigenen Ebene.
 - Netzwerk und Dekodieren laufen in einem eigenen Task auf Kern 1, das Zeichnen auf Kern 0.
 

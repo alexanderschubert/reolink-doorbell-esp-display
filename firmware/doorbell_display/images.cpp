@@ -168,7 +168,7 @@ static void handle_setup() {
   h += "<label>WLAN (Name)</label><input type=text name=ssid value=\"" + esc(cfg.ssid) + "\" required>";
   h += "<label>WLAN-Kennwort" + String(cfg.pass.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=pass autocomplete=new-password>";
   h += "<h2>Türklingel (Reolink)</h2><p>Zeigt bei Bewegung das Live-Bild. Empfohlen: ein eigener Benutzer auf der Klingel. Ein-/Ausschalten und die Anzeigedauer stehen auf der Startseite.</p>";
-  h += "<label>Adresse der Klingel (IP, bei anderem Port mit :Port)</label><input type=text name=dhost value=\"" + esc(cfg.dhost) + "\" placeholder=\"192.168.1.20\">";
+  h += "<label>Adresse der Klingel (IP; die Klingel antwortet meist nur auf HTTPS, das nutzt das Display selbst)</label><input type=text name=dhost value=\"" + esc(cfg.dhost) + "\" placeholder=\"192.168.1.20\">";
   h += "<label>Benutzer</label><input type=text name=duser value=\"" + esc(cfg.duser) + "\" autocomplete=off>";
   h += "<label>Kennwort" + String(cfg.dpass.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=dpass autocomplete=new-password>";
   h += "<label>Eigene Bildadresse (optional, JPEG per http, z. B. von go2rtc; sonst holt das Display das Bild bei der Klingel)</label><input type=text name=durl value=\"" + esc(cfg.durl) + "\">";

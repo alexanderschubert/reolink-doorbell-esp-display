@@ -2,6 +2,7 @@
 
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <esp_heap_caps.h>
 #include <rom/tjpgd.h>
 
@@ -26,8 +27,20 @@ static volatile bool dismissReq = false, testReq = false;
 static volatile uint32_t endAt = 0;         // millis, an dem die Anzeige endet
 static char status[96] = "aus";
 static volatile time_t lastMotionT = 0;
-static WiFiClient client;
+static WiFiClient plain;
+static WiFiClientSecure secure;              // die Klingel hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
 static HTTPClient http;
+
+// Antwort in einen festen Puffer sammeln (auch bei "chunked"-Übertragung)
+struct BufStream : public Stream {
+  uint8_t *d; size_t cap, n; bool over;
+  BufStream(uint8_t *b, size_t c) : d(b), cap(c), n(0), over(false) {}
+  size_t write(uint8_t c) override { if (n < cap) { d[n++] = c; return 1; } over = true; return 0; }
+  size_t write(const uint8_t *b, size_t l) override { if (n + l > cap) { over = true; return 0; } memcpy(d + n, b, l); n += l; return l; }
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+};
 
 static void set_status(const char *fmt, ...) {
   va_list a;
@@ -62,30 +75,32 @@ static String enc(const String &s) {
   return o;
 }
 
-static String api(const char *cmd, const char *extra) {
-  return String("http://") + cfg.dhost + "/api.cgi?cmd=" + cmd + "&channel=0" + extra + "&user=" + enc(cfg.duser) + "&password=" + enc(cfg.dpass);
+// Die Klingel antwortet meist nur auf HTTPS (HTTP wird dorthin umgeleitet). Ohne Angabe gilt HTTPS; "http://" erzwingt HTTP.
+static String base() {
+  if (cfg.dhost.startsWith("http://") || cfg.dhost.startsWith("https://")) return cfg.dhost;
+  return String("https://") + cfg.dhost;
 }
 
-// Antwort der Klingel holen; Kopf auswerten. Rückgabe: Länge oder -1.
+static String api(const char *cmd, const char *extra) {
+  return base() + "/api.cgi?cmd=" + cmd + "&channel=0" + extra + "&user=" + enc(cfg.duser) + "&password=" + enc(cfg.dpass);
+}
+
+// Antwort der Klingel holen. Rückgabe: Länge oder -1.
 static int fetch(const String &url, uint8_t *dst, size_t cap) {
+  const bool tls = url.startsWith("https");
+  if (tls) secure.setInsecure();
+  WiFiClient &cl = tls ? (WiFiClient &)secure : plain;
   http.setReuse(true);
-  http.setConnectTimeout(2000);
-  http.setTimeout(3000);
-  if (!http.begin(client, url)) return -1;
+  http.setConnectTimeout(4000);
+  http.setTimeout(4000);
+  if (!http.begin(cl, url)) return -1;
   const int code = http.GET();
-  if (code != 200) { set_status("Klingel antwortet mit %d", code); http.end(); client.stop(); return -1; }
-  const int len = http.getSize();
-  if (len <= 0 || (size_t)len > cap) { set_status("Antwort unbrauchbar (%d Byte)", len); http.end(); client.stop(); return -1; }
-  WiFiClient *s = http.getStreamPtr();
-  int got = 0;
-  const uint32_t t0 = millis();
-  while (got < len && millis() - t0 < 3000) {
-    const int n = s->readBytes(dst + got, len - got);
-    if (n > 0) got += n; else if (!s->connected()) break; else delay(2);
-  }
+  if (code != 200) { set_status("Klingel antwortet mit %d", code); http.end(); cl.stop(); return -1; }
+  BufStream bs(dst, cap);
+  http.writeToStream(&bs);
   http.end();                                // bei reuse bleibt die Verbindung offen
-  if (got != len) { client.stop(); set_status("Antwort unvollständig"); return -1; }
-  return got;
+  if (bs.over || bs.n == 0) { cl.stop(); set_status(bs.over ? "Antwort zu groß" : "Antwort leer"); return -1; }
+  return (int)bs.n;
 }
 
 // 1 Bewegung, 0 ruhig, -1 Fehler
