@@ -98,9 +98,10 @@ h2{font-size:18px;margin:22px 0 8px}
 .r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #ffffff22}
 .r:last-child{border:0}.r span{color:#a9b4d0}select,input[type=time]{background:#0b1226;color:#eef0f4;border:1px solid #ffffff44;border-radius:8px;padding:6px 8px;font:inherit}
 input[type=range]{width:180px}
+input[type=password]{background:#0b1226;color:#eef0f4;border:1px solid #ffffff44;border-radius:8px;padding:6px 8px;font:inherit;width:150px}
 #st{margin:12px 0;color:#a9b4d0;min-height:22px}
 </style>
-<h1>Türklingel-Display</h1><p><a href="/setup" style="color:#6cb8ff">Verbindung ändern (WLAN, Türklingel)</a></p>
+<h1>Türklingel-Display</h1><p><a href="/setup" style="color:#6cb8ff">Verbindung ändern (WLAN, Türklingel, Nuki)</a></p>
 <p>Bis zu acht Bilder. Sie werden auf 800 × 480 zugeschnitten und im Display gespeichert. Welches Bild der Hintergrund ist und ob der Bildschirmschoner sie zeigt, stellst du am Display unter Einstellungen ein.</p>
 <h2>Einstellungen</h2><div id="s" class="c"></div>
 <h2>Bilder</h2><label class="up">Bilder auswählen<input id="f" type="file" accept="image/*" multiple hidden></label>
@@ -122,7 +123,9 @@ async function prefs(){const p=await (await fetch('/api/prefs')).json(),s=$('#s'
   row('Bildschirmschoner',sel('saver',[[0,'Aus'],[1,'Uhr'],[2,'Bilder']],p.saver))+row('Starten nach',sel('saverMin',MINS.map(m=>[m,m+' min']),p.saverMin))+row('Helligkeit im Schoner',rng('saverBright',10,100,p.saverBright))+
   row('Nachtmodus',chk('nightOn',p.nightOn))+row('Nachts von',tm('nightFrom',p.nightFrom))+row('bis',tm('nightTo',p.nightTo))+row('Display nachts ausschalten',chk('nightOff',p.nightOff))+
   row('Türklingel: Live-Bild bei Bewegung',chk('doorOn',p.doorOn))+row('Anzeigedauer',sel('doorSecs',DS.map(m=>[m,m+' s']),p.doorSecs))+row('Türbild ausprobieren','<button id="dt">Jetzt zeigen</button>')+
-  row('Nuki-Schloss auf der Startseite',chk('nukiOn',p.nukiOn));
+  row('Nuki-Schloss auf der Startseite',chk('nukiOn',p.nukiOn))+
+  row('Nuki API-Token'+(p.nukiTok?' (gespeichert)':''),'<input type="password" id="nt" placeholder="neuer Token" autocomplete="new-password"><button id="ntb">Speichern</button>');
+ $('#ntb').onclick=async()=>{const v=$('#nt').value.trim();if(v){await save({ntoken:v});prefs()}};
  $('#dt').onclick=()=>save({doorTest:1});
  s.querySelectorAll('[data-k]').forEach(e=>e.onchange=()=>{const k=e.dataset.k;save({[k]:e.type=='checkbox'?(e.checked?1:0):e.type=='time'?mm(e.value):e.value})})}
 async function list(){prefs();const r=await (await fetch('/api/list')).json();const g=$('#g');g.innerHTML='';
@@ -227,6 +230,7 @@ static void handle_prefs() {
     int dOn = cfg.door, dSecs = cfg.dsecs;
     num("doorOn", 0, 1, dOn);
     num("doorSecs", 3, 300, dSecs);
+    if (server.hasArg("ntoken") && server.arg("ntoken").length()) { cfg.ntoken = server.arg("ntoken"); cfg.ntoken.trim(); cfg_save_door(); nuki_refresh(); }
     int kOn = cfg.nuki;
     num("nukiOn", 0, 1, kOn);
     if (kOn != cfg.nuki) { cfg.nuki = kOn; cfg_save_door(); nuki_refresh(); }
@@ -237,7 +241,7 @@ static void handle_prefs() {
   }
   String j = String("{\"theme\":") + prefs.theme + ",\"bright\":" + prefs.bright + ",\"bg\":" + prefs.bg + ",\"dim\":" + prefs.dim +
              ",\"saver\":" + prefs.saver + ",\"saverMin\":" + prefs.saverMin + ",\"saverBright\":" + prefs.saverBright + ",\"nightOn\":" + (prefs.nightOn ? "true" : "false") +
-             ",\"nightOff\":" + (prefs.nightOff ? "true" : "false") + ",\"nightFrom\":" + prefs.nightFrom + ",\"nightTo\":" + prefs.nightTo + ",\"doorOn\":" + (cfg.door ? "true" : "false") + ",\"doorSecs\":" + cfg.dsecs + ",\"nukiOn\":" + (cfg.nuki ? "true" : "false") + ",\"slots\":[";
+             ",\"nightOff\":" + (prefs.nightOff ? "true" : "false") + ",\"nightFrom\":" + prefs.nightFrom + ",\"nightTo\":" + prefs.nightTo + ",\"doorOn\":" + (cfg.door ? "true" : "false") + ",\"doorSecs\":" + cfg.dsecs + ",\"nukiOn\":" + (cfg.nuki ? "true" : "false") + ",\"nukiTok\":" + (cfg.ntoken.length() ? "true" : "false") + ",\"slots\":[";
   for (int i = 0; i < IMG_SLOTS; i++) j += String(i ? "," : "") + (img_has(i) ? "true" : "false");
   j += "]}";
   server.send(200, "application/json", j);
