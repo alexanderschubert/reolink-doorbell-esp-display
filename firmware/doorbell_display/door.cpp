@@ -1,6 +1,7 @@
 #include "door.h"
 
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <esp_heap_caps.h>
@@ -42,6 +43,27 @@ static void set_status(const char *fmt, ...) {
 
 const char *door_status() { return status; }
 time_t door_last_motion() { return lastMotionT; }
+
+void door_last_text(char *out, size_t n) {
+  const time_t m = lastMotionT;
+  if (!m) { snprintf(out, n, "noch keine Bewegung erkannt"); return; }
+  if (!net_time_ok()) { snprintf(out, n, "Uhrzeit wird geholt …"); return; }
+  const time_t now = time(nullptr);
+  struct tm a, b;
+  localtime_r(&m, &a);
+  localtime_r(&now, &b);
+  char when[24];
+  if (a.tm_year == b.tm_year && a.tm_yday == b.tm_yday) snprintf(when, sizeof when, "heute");
+  else if ((b.tm_yday - a.tm_yday == 1 && a.tm_year == b.tm_year) || (b.tm_yday == 0 && a.tm_mon == 11 && a.tm_mday == 31 && b.tm_year - a.tm_year == 1)) snprintf(when, sizeof when, "gestern");
+  else snprintf(when, sizeof when, "%d.%d.", a.tm_mday, a.tm_mon + 1);
+  const long d = (long)(now - m);
+  char ago[24];
+  if (d < 60) snprintf(ago, sizeof ago, "vor %ld s", d < 0 ? 0 : d);
+  else if (d < 3600) snprintf(ago, sizeof ago, "vor %ld min", d / 60);
+  else if (d < 86400) snprintf(ago, sizeof ago, "vor %ld h", d / 3600);
+  else snprintf(ago, sizeof ago, "vor %ld Tagen", d / 86400);
+  snprintf(out, n, "%s %02d:%02d Uhr (%s)", when, a.tm_hour, a.tm_min, ago);
+}
 bool door_wanted() { return want; }
 int door_remaining() { const int32_t r = (int32_t)(endAt - millis()); return want && r > 0 ? (r + 999) / 1000 : 0; }
 uint32_t door_seq() { return seq; }
@@ -257,7 +279,16 @@ static void task(void *) {
       if (m == 0) armed = true;
       if (m == 1) {
         lastMotion = millis();
-        if (net_time_ok()) lastMotionT = time(nullptr);
+        if (net_time_ok()) {
+          const time_t t = time(nullptr);
+          if (t - lastMotionT > 60) {                // höchstens einmal pro Minute in den Speicher schreiben
+            Preferences p;
+            p.begin("doorbell", false);
+            p.putULong("dLast", (uint32_t)t);
+            p.end();
+          }
+          lastMotionT = t;
+        }
         if (!want && armed && alloc_buffers()) {
           firstReq = millis(); want = true; start = lastMotion; noFrameSince = lastMotion; seq = 0; pubIdx = -1;
         }
@@ -277,5 +308,9 @@ static void task(void *) {
 }
 
 void door_begin() {
+  Preferences p;
+  p.begin("doorbell", true);
+  lastMotionT = (time_t)p.getULong("dLast", 0);       // die letzte Bewegung übersteht einen Neustart
+  p.end();
   xTaskCreatePinnedToCore(task, "door", 8192, nullptr, 1, nullptr, 1);   // Kern 1 wie loop(); das Zeichnen läuft auf Kern 0
 }

@@ -236,12 +236,9 @@ static void refresh_start() {
   else if (!cfg.dhost.length()) lv_label_set_text(statusL, "Adresse der Klingel fehlt (Webseite des Displays)");
   else if (ok) lv_label_set_text(statusL, "Bereit, wartet auf Bewegung");
   else { snprintf(b, sizeof b, "Klingel: %s", st); lv_label_set_text(statusL, b); }
-  const time_t m = door_last_motion();
-  if (m) {
-    struct tm tm;
-    localtime_r(&m, &tm);
-    snprintf(b, sizeof b, "Letzte Bewegung: %02d:%02d Uhr", tm.tm_hour, tm.tm_min);
-  } else snprintf(b, sizeof b, "Seit dem Start noch keine Bewegung");
+  char lt[64];
+  door_last_text(lt, sizeof lt);
+  snprintf(b, sizeof b, "Letzte Bewegung: %s", lt);
   lv_label_set_text(motionL, b);
   snprintf(b, sizeof b, "Anzeigedauer %d s · Berührung schließt das Bild", cfg.dsecs);
   lv_label_set_text(stateL, b);

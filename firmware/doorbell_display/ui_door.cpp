@@ -39,6 +39,7 @@ void ui_door_init() {
   lv_obj_set_style_bg_opa(chip, LV_OPA_60, 0);
   lv_obj_set_style_radius(chip, 14, 0);
   lv_obj_set_style_pad_hor(chip, 12, 0);
+  lv_obj_set_width(chip, SCREEN_W - 32);
   lv_obj_set_style_pad_ver(chip, 6, 0);
   lv_obj_add_flag(ov, LV_OBJ_FLAG_HIDDEN);
 }
@@ -81,8 +82,10 @@ void ui_door_poll() {
     }
     if (sec || s == 0) {
       lastSec = millis();
-      char b[64];
-      snprintf(b, sizeof b, "Türklingel · noch %d s · Berühren zum Schließen", door_remaining());
+      char b[128];
+      char lt[48];
+      door_last_text(lt, sizeof lt);
+      snprintf(b, sizeof b, "Bewegung %s · noch %d s · Berühren zum Schließen", lt, door_remaining());
       lv_label_set_text(chip, b);
     }
   }
