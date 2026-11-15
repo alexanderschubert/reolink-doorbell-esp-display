@@ -81,12 +81,10 @@ static String base() {
   return String("https://") + cfg.dhost;
 }
 
-static String api(const char *cmd, const char *extra) {
-  return base() + "/api.cgi?cmd=" + cmd + "&channel=0" + extra + "&user=" + enc(cfg.duser) + "&password=" + enc(cfg.dpass);
-}
+static String token;                         // Anmeldemarke der Klingel (Login); leer: noch nicht angemeldet
 
-// Antwort der Klingel holen. Rückgabe: Länge oder -1.
-static int fetch(const String &url, uint8_t *dst, size_t cap) {
+// Antwort der Klingel holen. post: JSON-Körper (POST) oder nullptr (GET). Rückgabe: Länge oder -1.
+static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post = nullptr) {
   const bool tls = url.startsWith("https");
   if (tls) secure.setInsecure();
   WiFiClient &cl = tls ? (WiFiClient &)secure : plain;
@@ -94,7 +92,9 @@ static int fetch(const String &url, uint8_t *dst, size_t cap) {
   http.setConnectTimeout(4000);
   http.setTimeout(4000);
   if (!http.begin(cl, url)) return -1;
-  const int code = http.GET();
+  int code;
+  if (post) { http.addHeader("Content-Type", "application/json"); code = http.POST((uint8_t *)post, strlen(post)); }
+  else code = http.GET();
   if (code != 200) { set_status("Klingel antwortet mit %d", code); http.end(); cl.stop(); return -1; }
   BufStream bs(dst, cap);
   http.writeToStream(&bs);
@@ -103,19 +103,67 @@ static int fetch(const String &url, uint8_t *dst, size_t cap) {
   return (int)bs.n;
 }
 
+// Wert zu "key" : "wert" bzw. "key" : zahl aus der JSON-Antwort (ohne JSON-Bibliothek)
+static String json_val(const char *b, const char *key, const char *from = nullptr) {
+  String k = String("\"") + key + "\"";
+  const char *p = strstr(from ? from : b, k.c_str());
+  if (!p) return "";
+  p = strchr(p + k.length(), ':');
+  if (!p) return "";
+  p++;
+  while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+  String v;
+  if (*p == '"') { p++; while (*p && *p != '"' && v.length() < 60) v += *p++; }
+  else while (*p && *p != ',' && *p != '}' && *p != '\n' && *p != ' ' && v.length() < 20) v += *p++;
+  return v;
+}
+
+// Kurzfassung eines Fehlers der Klingel für die Anzeige: Befehl, rspCode und Text
+static void set_error(const char *what, const char *b) {
+  String d = json_val(b, "detail"), c = json_val(b, "rspCode");
+  set_status("%s: %s (%s)", what, d.length() ? d.c_str() : "?", c.length() ? c.c_str() : "?");
+}
+
+// Anmelden und die Marke holen (so wie die Reolink-App und Home Assistant es tun)
+static bool login() {
+  static uint8_t body[1024];
+  // Anführungszeichen und Backslash im Kennwort maskieren
+  String esc;
+  for (size_t i = 0; i < cfg.dpass.length(); i++) { const char c = cfg.dpass[i]; if (c == '"' || c == '\\') esc += '\\'; esc += c; }
+  String esu, j;
+  for (size_t i = 0; i < cfg.duser.length(); i++) { const char c = cfg.duser[i]; if (c == '"' || c == '\\') esu += '\\'; esu += c; }
+  j = String("[{\"cmd\":\"Login\",\"param\":{\"User\":{\"Version\":\"0\",\"userName\":\"") + esu + "\",\"password\":\"" + esc + "\"}}}]";
+  const int n = fetch(base() + "/api.cgi?cmd=Login", body, sizeof body - 1, j.c_str());
+  if (n < 0) return false;
+  body[n] = 0;
+  const char *b = (const char *)body;
+  const char *t = strstr(b, "\"Token\"");
+  String name = t ? json_val(b, "name", t) : "";
+  if (!name.length()) { set_error("Anmeldung abgelehnt", b); return false; }
+  token = name;
+  return true;
+}
+
+static String api(const char *cmd, const char *extra) {
+  return base() + "/api.cgi?cmd=" + cmd + "&channel=0" + extra + "&token=" + enc(token);
+}
+
 // 1 Bewegung, 0 ruhig, -1 Fehler
 static int poll_motion() {
   static bool useMd = false;
-  static uint8_t body[768];
-  for (int tries = 0; tries < 2; tries++) {
+  static uint8_t body[1536];
+  for (int tries = 0; tries < 3; tries++) {
+    if (!token.length() && !login()) return -1;
     const int n = fetch(api(useMd ? "GetMdState" : "GetEvents", ""), body, sizeof body - 1);
     if (n < 0) return -1;
     body[n] = 0;
     const char *b = (const char *)body;
-    if (!strstr(b, "\"code\" : 0") && !strstr(b, "\"code\":0")) {          // Befehl unbekannt oder Anmeldung abgelehnt
-      if (strstr(b, "rspCode\" : -6") || strstr(b, "rspCode\":-6") || strstr(b, "login failed") || strstr(b, "please login")) { set_status("Anmeldung an der Klingel abgelehnt"); return -1; }
-      useMd = !useMd;
-      continue;
+    if (!strstr(b, "\"code\" : 0") && !strstr(b, "\"code\":0")) {
+      const String rc = json_val(b, "rspCode");
+      if (rc == "-6" || rc == "-5" || strstr(b, "login")) { token = ""; continue; }   // Marke abgelaufen: neu anmelden
+      if (rc == "-9" || rc == "-3" || strstr(b, "not support")) { useMd = !useMd; continue; }   // Befehl nicht vorhanden: den anderen versuchen
+      set_error(useMd ? "GetMdState" : "GetEvents", b);
+      return -1;
     }
     set_status("verbunden");
     if (useMd) return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") ? 1 : 0;
@@ -123,7 +171,7 @@ static int poll_motion() {
     return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") || strstr(b, "\"visitor\" : 1") || strstr(b, "\"visitor\":1") ||
            strstr(b, "\"people\" : 1") || strstr(b, "\"people\":1") ? 1 : 0;
   }
-  set_status("Klingel versteht die Abfrage nicht");
+  if (token.length()) set_status("Klingel versteht die Abfrage nicht");
   return -1;
 }
 
@@ -162,9 +210,18 @@ static bool decode(size_t n, uint16_t *out, int *w, int *h) {
 }
 
 static bool grab_frame(int wr) {
-  String url = cfg.durl.length() ? cfg.durl : api("Snap", (String("&snapType=sub&rs=") + String((uint32_t)esp_random(), HEX)).c_str());
+  String url = cfg.durl.length() ? cfg.durl : (token.length() || login()) ? api("Snap", (String("&snapType=sub&rs=") + String((uint32_t)esp_random(), HEX)).c_str()) : String();
+  if (!url.length()) return false;
   const int n = fetch(url, jpg, JPG_MAX);
-  if (n < 4 || jpg[0] != 0xFF || jpg[1] != 0xD8) { if (n >= 0) set_status("Antwort ist kein JPEG"); return false; }
+  if (n < 4 || jpg[0] != 0xFF || jpg[1] != 0xD8) {
+    if (n >= 0) {
+      if (n < JPG_MAX) jpg[n] = 0;
+      const String rc = json_val((const char *)jpg, "rspCode");
+      if (rc == "-6" || rc == "-5") token = "";
+      set_error("Bild", (const char *)jpg);
+    }
+    return false;
+  }
   int w, h;
   if (!decode(n, buf[wr], &w, &h)) return false;
   pubW = w; pubH = h; pubIdx = wr;
