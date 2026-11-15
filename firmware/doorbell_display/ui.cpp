@@ -1,0 +1,240 @@
+#include "ui.h"
+
+#include <time.h>
+
+#include "font_icons.h"
+#include "font_lato_bold.h"
+#include "font_lato_regular.h"
+#include "cfg.h"
+#include "door.h"
+#include "net.h"
+#include "ui_common.h"
+
+const lv_font_t *f12, *f14, *f16, *f20, *f28, *f36b, *fClock;
+const lv_font_t *fi14, *fi16, *fi20, *fi28;
+
+static const char *PAGE_NAME[2] = {"Start", "Einstellungen"};
+static const char *PAGE_ICON[2] = {IC_HOUSE, IC_GEAR};
+
+static lv_obj_t *page[2];
+static lv_obj_t *navIcon[2], *navText[2];
+
+// Startseite: Uhr, Datum und der Zustand der Klingel
+static lv_obj_t *clockL, *dateL, *statusIcon, *statusL, *motionL, *stateL;
+
+static int curPage = 0;
+static void refresh_page(int i);
+
+static void show_page(int i) {
+  curPage = i;
+  for (int p = 0; p < 2; p++) {
+    if (p == i) lv_obj_clear_flag(page[p], LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(page[p], LV_OBJ_FLAG_HIDDEN);
+    const uint32_t c = p == i ? C_ACC : C_DM;
+    lv_obj_set_style_text_color(navIcon[p], lv_color_hex(c), 0);
+    lv_obj_set_style_text_color(navText[p], lv_color_hex(c), 0);
+  }
+  refresh_page(i);
+}
+
+static void nav_cb(lv_event_t *e) { show_page((int)(intptr_t)lv_event_get_user_data(e)); }
+static void show_cb(lv_event_t *) { door_test(); }
+
+static void build_start(lv_obj_t *p) {
+  clockL = ui_label(p, fClock, C_TEXT, "--:--", 30, 6);
+  dateL = ui_label(p, f20, C_MU, " ", 34, 98);
+
+  lv_obj_t *card = ui_glass(p, 32, 170, 736, 190, 20);
+  statusIcon = ui_icon(card, fi28, C_DM, IC_BELL, 28, 26);
+  ui_label(card, f28, C_TEXT, "Türklingel", 84, 22);
+  statusL = ui_label_w(card, f20, C_MU, " ", 84, 64, 620, LV_TEXT_ALIGN_LEFT);
+  motionL = ui_label_w(card, f20, C_MU, " ", 84, 98, 620, LV_TEXT_ALIGN_LEFT);
+  stateL = ui_label_w(card, f14, C_DM, " ", 84, 132, 400, LV_TEXT_ALIGN_LEFT);
+  ui_button(card, 520, 128, 190, 40, "Live-Bild zeigen", C_ACC, show_cb, nullptr);
+}
+
+// TinyTTF legt den Cache für (Cachegröße / Schriftgröße²) Zeichen an: zu klein gewählt sind es null Einträge und das
+// Programm teilt durch null. Darum bekommt jede Schrift Platz für eine feste Zahl Zeichen.
+static const lv_font_t *ttf(const unsigned char *data, size_t len, int size) {
+  const int glyphs = size <= 20 ? 160 : size <= 40 ? 80 : 16;
+  return lv_tiny_ttf_create_data_ex(data, len, size, (size_t)size * size * glyphs);
+}
+
+static lv_obj_t *bgImg, *bgDim;
+static lv_img_dsc_t bgDsc;
+static uint8_t *bgBuf = nullptr;
+static int bgLoaded = -2;
+static bool bgDirty = true, rebuildPending = false;
+static uint32_t bgRev = 0;
+
+// Hintergrundbild und Abdunklung nach den Einstellungen setzen (unter der LVGL-Sperre)
+static void bg_apply() {
+  bgDirty = false;
+  int slot = prefs.bg;
+  if (slot >= 0 && !img_has(slot)) slot = -1;
+  if (slot >= 0 && !bgBuf) bgBuf = img_alloc();
+  if (slot >= 0 && !bgBuf) slot = -1;
+  if (slot >= 0 && slot != bgLoaded) {
+    if (img_read(slot, bgBuf)) {
+      bgDsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+      bgDsc.header.w = SCREEN_W;
+      bgDsc.header.h = SCREEN_H;
+      bgDsc.data_size = IMG_BYTES;
+      bgDsc.data = bgBuf;
+      bgLoaded = slot;
+      lv_img_set_src(bgImg, &bgDsc);
+      lv_obj_invalidate(bgImg);
+    } else slot = -1;
+  }
+  if (slot < 0) bgLoaded = -2;
+  if (slot >= 0) { lv_obj_clear_flag(bgImg, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(bgDim, LV_OBJ_FLAG_HIDDEN); }
+  else { lv_obj_add_flag(bgImg, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(bgDim, LV_OBJ_FLAG_HIDDEN); }
+  lv_obj_set_style_bg_color(bgDim, lv_color_hex(th.bg), 0);
+  lv_obj_set_style_bg_opa(bgDim, (lv_opa_t)(prefs.dim * 255 / 100), 0);
+}
+
+void ui_bg_changed() { bgDirty = true; }
+
+bool ui_theme_light_wanted() {
+  if (prefs.theme == 1) return true;
+  if (prefs.theme == 0) return false;
+  if (!net_time_ok()) return th.light;
+  time_t t = time(nullptr);
+  struct tm tm;
+  localtime_r(&t, &tm);
+  return tm.tm_hour >= 7 && tm.tm_hour < 19;
+}
+
+static void build_all() {
+  lv_obj_t *scr = lv_scr_act();
+  lv_obj_set_style_bg_color(scr, lv_color_hex(C_BG), 0);
+  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+  lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+
+  bgImg = lv_img_create(scr);
+  lv_obj_set_pos(bgImg, 0, 0);
+  lv_obj_clear_flag(bgImg, LV_OBJ_FLAG_CLICKABLE);
+  bgDim = ui_plain(scr, 0, 0, SCREEN_W, SCREEN_H);
+  lv_obj_clear_flag(bgDim, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_style_bg_opa(bgDim, LV_OPA_COVER, 0);
+  bgLoaded = -2;
+  bg_apply();
+
+  for (int i = 0; i < 2; i++) page[i] = ui_plain(scr, 0, 0, SCREEN_W, PAGE_H);
+  build_start(page[0]);
+  page_settings_build(page[1]);
+
+  lv_obj_t *nav = ui_plain(scr, 0, SCREEN_H - 56, SCREEN_W, 56);
+  lv_obj_set_style_bg_color(nav, lv_color_hex(th.nav), 0);
+  lv_obj_set_style_bg_opa(nav, th.navOpa, 0);
+  for (int i = 0; i < 2; i++) {
+    lv_obj_t *b = ui_plain(nav, i * 400, 0, 400, 56);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(b, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    navIcon[i] = ui_icon_w(b, fi20, C_DM, PAGE_ICON[i], 0, 6, 400);
+    navText[i] = ui_label_w(b, f12, C_DM, PAGE_NAME[i], 0, 33, 400, LV_TEXT_ALIGN_CENTER);
+  }
+  ui_saver_init(scr);
+  ui_night_init(scr);
+  ui_bright_apply();
+}
+
+static void rebuild_cb(void *) {
+  rebuildPending = false;
+  const int cur = curPage;
+  ui_clock_reset();
+  lv_obj_clean(lv_layer_top());
+  lv_obj_clean(lv_scr_act());
+  build_all();
+  show_page(cur);
+  ui_refresh();
+  ui_tick();
+}
+
+void ui_theme_changed() {
+  if (rebuildPending) return;
+  ui_theme_apply(ui_theme_light_wanted());
+  rebuildPending = true;
+  lv_async_call(rebuild_cb, nullptr);       // nicht aus dem Ereignis heraus: das auslösende Objekt wird dabei gelöscht
+}
+
+void ui_init() {
+  f12 = ttf(font_lato_regular, font_lato_regular_len, 12);
+  f14 = ttf(font_lato_regular, font_lato_regular_len, 14);
+  f16 = ttf(font_lato_regular, font_lato_regular_len, 16);
+  f20 = ttf(font_lato_regular, font_lato_regular_len, 20);
+  f28 = ttf(font_lato_regular, font_lato_regular_len, 28);
+  f36b = ttf(font_lato_bold, font_lato_bold_len, 36);
+  fClock = ttf(font_lato_regular, font_lato_regular_len, 72);
+  fi14 = ttf(font_icons, font_icons_len, 14);
+  fi16 = ttf(font_icons, font_icons_len, 16);
+  fi20 = ttf(font_icons, font_icons_len, 20);
+  fi28 = ttf(font_icons, font_icons_len, 28);
+  prefs_load();
+  ui_theme_apply(prefs.theme == 1);
+  ui_door_init();                           // vor build_all(): die Helligkeits-Schicht muss darüber liegen
+  build_all();
+  show_page(0);
+  ui_refresh();
+  ui_tick();
+}
+
+static void refresh_start();
+
+void ui_tick() {
+  if (!clockL) return;
+  static const char *WD[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+  static const char *MO[] = {"Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"};
+  char buf[48];
+  if (net_time_ok()) {
+    time_t t = time(nullptr);
+    struct tm tm;
+    localtime_r(&t, &tm);
+    snprintf(buf, sizeof buf, "%02d:%02d", tm.tm_hour, tm.tm_min);
+    lv_label_set_text(clockL, buf);
+    ui_set_clock_text(buf);
+    snprintf(buf, sizeof buf, "%s, %d. %s", WD[tm.tm_wday], tm.tm_mday, MO[tm.tm_mon]);
+    lv_label_set_text(dateL, buf);
+  } else {
+    lv_label_set_text(clockL, "--:--");
+    ui_set_clock_text("--:--");
+    lv_label_set_text(dateL, net_wifi_ok() ? "Uhrzeit wird geholt …" : "Suche das WLAN …");
+  }
+  if (!rebuildPending && ui_theme_light_wanted() != th.light) ui_theme_changed();   // Automatik: Wechsel zwischen hell und dunkel
+  if (bgDirty || imgRevision != bgRev) { bgRev = imgRevision; bg_apply(); }
+  ui_saver_tick();
+  ui_night_tick();
+  page_tick();
+  if (curPage == 0) refresh_start();
+}
+
+static void refresh_start() {
+  char b[96];
+  const char *st = door_status();
+  const bool ok = cfg.door && !strcmp(st, "verbunden");
+  lv_label_set_text(statusIcon, IC_BELL);
+  lv_obj_set_style_text_color(statusIcon, lv_color_hex(ok ? C_OK : C_DM), 0);
+  if (!net_wifi_ok()) lv_label_set_text(statusL, "Kein WLAN");
+  else if (!cfg.door) lv_label_set_text(statusL, "Aus (Einstellungen > Türklingel)");
+  else if (!cfg.dhost.length()) lv_label_set_text(statusL, "Adresse der Klingel fehlt (Webseite des Displays)");
+  else if (ok) lv_label_set_text(statusL, "Bereit, wartet auf Bewegung");
+  else { snprintf(b, sizeof b, "Klingel: %s", st); lv_label_set_text(statusL, b); }
+  const time_t m = door_last_motion();
+  if (m) {
+    struct tm tm;
+    localtime_r(&m, &tm);
+    snprintf(b, sizeof b, "Letzte Bewegung: %02d:%02d Uhr", tm.tm_hour, tm.tm_min);
+  } else snprintf(b, sizeof b, "Seit dem Start noch keine Bewegung");
+  lv_label_set_text(motionL, b);
+  snprintf(b, sizeof b, "Anzeigedauer %d s · Berührung schließt das Bild", cfg.dsecs);
+  lv_label_set_text(stateL, b);
+}
+
+static void refresh_page(int i) {
+  if (i == 0) refresh_start(); else page_settings_refresh();
+}
+
+void ui_refresh() {
+  if (!clockL) return;
+  refresh_page(curPage);
+}

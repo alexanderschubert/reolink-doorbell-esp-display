@@ -1,0 +1,4 @@
+firmware/build/
+firmware/dist/
+firmware/doorbell_display/secrets.h
+.DS_Store
