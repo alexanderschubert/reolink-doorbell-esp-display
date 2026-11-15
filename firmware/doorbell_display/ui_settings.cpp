@@ -247,10 +247,10 @@ void page_settings_build(lv_obj_t *p) {
 
   // Nuki-Schloss
   y = 88;
-  lv_obj_t *ck = row_card(grp[5], y, IC_SHIELD, "Schloss auf der Startseite", "Zeigt Zustand, Tür und Batterie deines Nuki-Schlosses");
+  lv_obj_t *ck = row_card(grp[5], y, IC_LOCK, "Schloss auf der Startseite", "Zeigt Zustand, Tür und Batterie deines Nuki-Schlosses");
   toggle(ck, 3, cfg.nuki); y += dy;
   lv_obj_t *cn = solid_card(grp[5], y, 96);
-  infoNuki = ui_icon_text(cn, IC_SHIELD, C_ACC, " ", f14, C_TEXT, 22, 12);
+  infoNuki = ui_icon_text(cn, IC_LOCK, C_ACC, " ", f14, C_TEXT, 22, 12);
   ui_label(cn, f14, C_DM, "Den API-Token (web.nuki.io, API & Integrationen) trägst du auf der Webseite des Displays ein", 22, 38);
   ui_button(cn, 22, 58, 170, 32, "Jetzt abfragen", C_ACC, [](lv_event_t *) { nuki_refresh(); }, nullptr);
 
@@ -272,7 +272,7 @@ void page_settings_build(lv_obj_t *p) {
   tile_btn(home, 32, 204, IC_MOON, GRP_NAME[2], 2);
   tile_btn(home, 410, 204, IC_MICROCHIP, GRP_NAME[3], 3);
   tile_btn(home, 32, 324, IC_BELL, GRP_NAME[4], 4);
-  tile_btn(home, 410, 324, IC_SHIELD, GRP_NAME[5], 5);
+  tile_btn(home, 410, 324, IC_LOCK, GRP_NAME[5], 5);
 
   backBtn = ui_button(p, 440, 16, 140, 40, "Zurück", C_ACC, back_cb, nullptr);
   show_grp(curGrp);

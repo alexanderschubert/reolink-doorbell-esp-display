@@ -22,7 +22,7 @@ static lv_obj_t *navIcon[2], *navText[2];
 
 // Startseite: Uhr, Datum und der Zustand der Klingel
 static lv_obj_t *clockL, *dateL, *statusIcon, *statusL, *motionL, *stateL;
-static lv_obj_t *nukiIcon, *nukiName, *nukiState, *nukiDoor, *nukiBat, *nukiNote;
+static lv_obj_t *nukiDoorIcon, *nukiBatIcon, *nukiIcon, *nukiName, *nukiState, *nukiDoor, *nukiBat, *nukiNote;
 
 static int curPage = 0;
 static void refresh_page(int i);
@@ -54,15 +54,17 @@ static void build_start(lv_obj_t *p) {
   lv_obj_set_height(statusL, 60);
   motionL = ui_label_w(card, f16, C_MU, " ", 22, 136, 316, LV_TEXT_ALIGN_LEFT);
   stateL = ui_label_w(card, f14, C_DM, " ", 22, 164, 316, LV_TEXT_ALIGN_LEFT);
-  ui_button(card, 22, 198, 190, 38, "Live-Bild zeigen", C_ACC, show_cb, nullptr);
+  ui_button_i(card, 22, 198, 200, 38, IC_VIDEO, "Live-Bild zeigen", C_ACC, show_cb, nullptr);
 
   // Rechte Karte: Nuki-Schloss
   lv_obj_t *nk = ui_glass(p, 410, 150, 358, 250, 20);
-  nukiIcon = ui_icon(nk, fi28, C_DM, IC_SHIELD, 22, 18);
+  nukiIcon = ui_icon(nk, fi28, C_DM, IC_LOCK, 22, 18);
   nukiName = ui_label_w(nk, f28, C_TEXT, "Schloss", 66, 14, 280, LV_TEXT_ALIGN_LEFT);
   nukiState = ui_label_w(nk, f28, C_TEXT, " ", 22, 76, 316, LV_TEXT_ALIGN_LEFT);
-  nukiDoor = ui_label_w(nk, f16, C_MU, " ", 22, 126, 316, LV_TEXT_ALIGN_LEFT);
-  nukiBat = ui_label_w(nk, f16, C_MU, " ", 22, 156, 316, LV_TEXT_ALIGN_LEFT);
+  nukiDoorIcon = ui_icon(nk, fi16, C_MU, IC_DOOR_CLOSED, 22, 128);
+  nukiDoor = ui_label_w(nk, f16, C_MU, " ", 52, 126, 286, LV_TEXT_ALIGN_LEFT);
+  nukiBatIcon = ui_icon(nk, fi16, C_MU, IC_BATTERY_FULL, 22, 158);
+  nukiBat = ui_label_w(nk, f16, C_MU, " ", 52, 156, 286, LV_TEXT_ALIGN_LEFT);
   nukiNote = ui_label_w(nk, f14, C_DM, " ", 22, 196, 316, LV_TEXT_ALIGN_LEFT);
   lv_obj_set_height(nukiNote, 40);
 }
@@ -250,17 +252,17 @@ static void refresh_nuki() {
   if (!cfg.nuki) {
     lv_label_set_text(nukiName, "Schloss");
     lv_label_set_text(nukiState, "Aus");
-    lv_label_set_text(nukiDoor, " ");
+    lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiDoorIcon, " "); lv_label_set_text(nukiBatIcon, " ");
     lv_label_set_text(nukiBat, " ");
     lv_label_set_text(nukiNote, "Einstellungen > Nuki, Token auf der Webseite");
     lv_obj_set_style_text_color(nukiIcon, lv_color_hex(C_DM), 0);
     return;
   }
   const NukiInfo n = nuki_get();
-  if (!cfg.ntoken.length()) { lv_label_set_text(nukiState, "Token fehlt"); lv_label_set_text(nukiNote, "Auf der Webseite des Displays eintragen"); lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiBat, " "); return; }
+  if (!cfg.ntoken.length()) { lv_label_set_text(nukiState, "Token fehlt"); lv_label_set_text(nukiNote, "Auf der Webseite des Displays eintragen"); lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiDoorIcon, " "); lv_label_set_text(nukiBatIcon, " "); lv_label_set_text(nukiBat, " "); return; }
   if (!n.valid) {
     lv_label_set_text(nukiState, n.err[0] ? "Keine Daten" : "Wird abgefragt …");
-    lv_label_set_text(nukiDoor, " ");
+    lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiDoorIcon, " "); lv_label_set_text(nukiBatIcon, " ");
     lv_label_set_text(nukiBat, " ");
     lv_label_set_text(nukiNote, n.err);
     lv_obj_set_style_text_color(nukiIcon, lv_color_hex(C_DM), 0);
@@ -269,12 +271,16 @@ static void refresh_nuki() {
   lv_label_set_text(nukiName, n.name[0] ? n.name : "Schloss");
   lv_label_set_text(nukiState, nuki_state_text(n.state));
   const bool locked = n.state == 1, bad = n.state == 254 || n.state == 0;
+  lv_label_set_text(nukiIcon, locked ? IC_LOCK : IC_LOCK_OPEN);
   lv_obj_set_style_text_color(nukiIcon, lv_color_hex(bad ? C_HOT : locked ? C_OK : C_WARM), 0);
   lv_obj_set_style_text_color(nukiState, lv_color_hex(bad ? C_HOT : locked ? C_TEXT : C_WARM), 0);
+  lv_label_set_text(nukiDoorIcon, n.door == 3 ? IC_DOOR_OPEN : IC_DOOR_CLOSED);
   lv_label_set_text(nukiDoor, n.door == 2 ? "Tür: geschlossen" : n.door == 3 ? "Tür: offen" : "Tür: kein Sensor");
   if (n.battery >= 0) snprintf(b, sizeof b, "Batterie: %d %%%s", n.battery, n.critical ? " (schwach!)" : "");
   else snprintf(b, sizeof b, "Batterie: –");
   lv_label_set_text(nukiBat, b);
+  lv_label_set_text(nukiBatIcon, n.critical ? IC_BATTERY_QUARTER : IC_BATTERY_FULL);
+  lv_obj_set_style_text_color(nukiBatIcon, lv_color_hex(n.critical ? C_HOT : C_MU), 0);
   lv_obj_set_style_text_color(nukiBat, lv_color_hex(n.critical ? C_HOT : C_MU), 0);
   const uint32_t age = (millis() - n.at) / 1000;
   if (n.err[0]) snprintf(b, sizeof b, "%s", n.err);
