@@ -123,7 +123,7 @@ async function prefs(){const p=await (await fetch('/api/prefs')).json(),s=$('#s'
   row('Bildschirmschoner',sel('saver',[[0,'Aus'],[1,'Uhr'],[2,'Bilder']],p.saver))+row('Starten nach',sel('saverMin',MINS.map(m=>[m,m+' min']),p.saverMin))+row('Helligkeit im Schoner',rng('saverBright',10,100,p.saverBright))+
   row('Nachtmodus',chk('nightOn',p.nightOn))+row('Nachts von',tm('nightFrom',p.nightFrom))+row('bis',tm('nightTo',p.nightTo))+row('Display nachts ausschalten',chk('nightOff',p.nightOff))+
   row('Türklingel: Live-Bild bei Bewegung',chk('doorOn',p.doorOn))+row('Anzeigedauer',sel('doorSecs',DS.map(m=>[m,m+' s']),p.doorSecs))+row('Türbild ausprobieren','<button id="dt">Jetzt zeigen</button>')+
-  row('Nuki-Schloss auf der Startseite',chk('nukiOn',p.nukiOn))+
+  row('Nuki-Schloss auf der Startseite',chk('nukiOn',p.nukiOn))+row('Schloss am Display bedienen (auf-/zuschließen)',chk('nukiCtl',p.nukiCtl))+
   row('Nuki API-Token'+(p.nukiTok?' (gespeichert)':''),'<input type="password" id="nt" placeholder="neuer Token" autocomplete="new-password"><button id="ntb">Speichern</button>');
  $('#ntb').onclick=async()=>{const v=$('#nt').value.trim();if(v){await save({ntoken:v});prefs()}};
  $('#dt').onclick=()=>save({doorTest:1});
@@ -177,7 +177,7 @@ static void handle_setup() {
   h += "<label>Benutzer</label><input type=text name=duser value=\"" + esc(cfg.duser) + "\" autocomplete=off>";
   h += "<label>Kennwort" + String(cfg.dpass.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=dpass autocomplete=new-password>";
   h += "<label>Eigene Bildadresse (optional, JPEG per http, z. B. von go2rtc; sonst holt das Display das Bild bei der Klingel)</label><input type=text name=durl value=\"" + esc(cfg.durl) + "\">";
-  h += "<h2>Nuki-Schloss</h2><p>Erzeuge auf web.nuki.io unter „API &amp; Integrationen“ einen API-Token (zum Anzeigen genügt das Recht zum Lesen) und trage ihn hier ein. Ein-/Ausschalten geht am Display oder auf der Startseite der Webseite.</p>";
+  h += "<h2>Nuki-Schloss</h2><p>Erzeuge auf web.nuki.io unter „API &amp; Integrationen“ einen API-Token (zum Anzeigen genügt das Recht zum Lesen, zum Bedienen braucht er auch das Recht zum Ausführen von Aktionen) und trage ihn hier ein. Ein-/Ausschalten geht am Display oder auf der Startseite der Webseite.</p>";
   h += "<label>API-Token" + String(cfg.ntoken.length() ? " (leer lassen = unverändert)" : "") + "</label><input type=password name=ntoken autocomplete=new-password>";
   h += "<button>Speichern und neu starten</button></form></html>";
   server.send(200, "text/html; charset=utf-8", h);
@@ -231,8 +231,10 @@ static void handle_prefs() {
     num("doorOn", 0, 1, dOn);
     num("doorSecs", 3, 300, dSecs);
     if (server.hasArg("ntoken") && server.arg("ntoken").length()) { cfg.ntoken = server.arg("ntoken"); cfg.ntoken.trim(); cfg_save_door(); nuki_refresh(); }
-    int kOn = cfg.nuki;
+    int kOn = cfg.nuki, kCtl = cfg.nctl;
     num("nukiOn", 0, 1, kOn);
+    num("nukiCtl", 0, 1, kCtl);
+    if (kCtl != cfg.nctl) { cfg.nctl = kCtl; cfg_save_door(); }
     if (kOn != cfg.nuki) { cfg.nuki = kOn; cfg_save_door(); nuki_refresh(); }
     if (dOn != cfg.door || dSecs != cfg.dsecs) { cfg.door = dOn; cfg.dsecs = dSecs; cfg_save_door(); }
     if (server.hasArg("doorTest")) door_test();
@@ -241,7 +243,7 @@ static void handle_prefs() {
   }
   String j = String("{\"theme\":") + prefs.theme + ",\"bright\":" + prefs.bright + ",\"bg\":" + prefs.bg + ",\"dim\":" + prefs.dim +
              ",\"saver\":" + prefs.saver + ",\"saverMin\":" + prefs.saverMin + ",\"saverBright\":" + prefs.saverBright + ",\"nightOn\":" + (prefs.nightOn ? "true" : "false") +
-             ",\"nightOff\":" + (prefs.nightOff ? "true" : "false") + ",\"nightFrom\":" + prefs.nightFrom + ",\"nightTo\":" + prefs.nightTo + ",\"doorOn\":" + (cfg.door ? "true" : "false") + ",\"doorSecs\":" + cfg.dsecs + ",\"nukiOn\":" + (cfg.nuki ? "true" : "false") + ",\"nukiTok\":" + (cfg.ntoken.length() ? "true" : "false") + ",\"slots\":[";
+             ",\"nightOff\":" + (prefs.nightOff ? "true" : "false") + ",\"nightFrom\":" + prefs.nightFrom + ",\"nightTo\":" + prefs.nightTo + ",\"doorOn\":" + (cfg.door ? "true" : "false") + ",\"doorSecs\":" + cfg.dsecs + ",\"nukiOn\":" + (cfg.nuki ? "true" : "false") + ",\"nukiCtl\":" + (cfg.nctl ? "true" : "false") + ",\"nukiTok\":" + (cfg.ntoken.length() ? "true" : "false") + ",\"slots\":[";
   for (int i = 0; i < IMG_SLOTS; i++) j += String(i ? "," : "") + (img_has(i) ? "true" : "false");
   j += "]}";
   server.send(200, "application/json", j);

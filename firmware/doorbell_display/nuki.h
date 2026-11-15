@@ -12,8 +12,12 @@ struct NukiInfo {
   bool critical;         // Batterie kritisch
   uint32_t at;           // millis der letzten Antwort
   char err[72];          // Fehlertext, leer wenn alles gut
+  char id[24];           // smartlockId des ersten Schlosses
+  char msg[72];          // Ergebnis des letzten Befehls ("Befehl gesendet", Fehlertext)
+  uint32_t msgAt;        // millis, wann msg gesetzt wurde
 };
 void nuki_begin();
 NukiInfo nuki_get();
+void nuki_action(bool unlock);     // Schloss auf- oder zuschließen (nur mit Recht zum Ausführen im Token)
 void nuki_refresh();                 // sofort neu abfragen
 const char *nuki_state_text(int state);

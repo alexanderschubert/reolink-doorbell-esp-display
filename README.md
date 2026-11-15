@@ -8,7 +8,7 @@ Ein Touch-Display, das bei Bewegung vor der Haustür das **Live-Bild deiner Reol
 - **Dauer einstellbar:** Das Bild bleibt für die eingestellte Zeit ab der letzten erkannten Bewegung (3 bis 300 s), höchstens fünf Minuten am Stück.
 - **Berührung schließt das Bild.** Es erscheint erst wieder, wenn die Bewegung einmal aufgehört hat.
 - **Danach wie vorher:** Das Bild liegt über Bildschirmschoner und Nachtmodus. Danach ist wieder alles wie vorher, und war die Beleuchtung nachts aus, geht sie wieder aus.
-- **Nuki-Schloss auf der Startseite** (Smart Lock 3.0 Pro, über die Nuki-Web-API): Zustand, Tür und Batterie. Das Auf- und Zuschließen kommt später. API-Token auf der Webseite des Displays eintragen.
+- **Nuki-Schloss auf der Startseite** (Smart Lock 3.0 Pro, über die Nuki-Web-API): Zustand, Tür und Batterie. Optional (eigener Schalter, standardmäßig aus) lässt sich das Schloss am Display zu- und aufschließen; Aufschließen nur mit Gedrückthalten zum Bestätigen. API-Token auf der Webseite des Displays eintragen; zum Bedienen braucht er das Recht zum Ausführen von Aktionen. Anzeige und Bedienung lassen sich getrennt ein- und ausschalten, ebenso das Live-Bild der Klingel.
 - **Uhr, Bildschirmschoner (Uhr oder Bilderschau), Nachtmodus**, dunkel/hell, Hintergrundbilder.
 - **Einrichtung im Browser**, keine Zugangsdaten im Quelltext.
 

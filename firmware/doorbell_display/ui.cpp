@@ -22,6 +22,7 @@ static lv_obj_t *navIcon[2], *navText[2];
 
 // Startseite: Uhr, Datum und der Zustand der Klingel
 static lv_obj_t *clockL, *dateL, *statusIcon, *statusL, *motionL, *stateL;
+static lv_obj_t *modal, *modalTitle, *btnLock, *btnUnlock;
 static lv_obj_t *nukiDoorIcon, *nukiBatIcon, *nukiIcon, *nukiName, *nukiState, *nukiDoor, *nukiBat, *nukiNote;
 
 static int curPage = 0;
@@ -42,6 +43,13 @@ static void show_page(int i) {
 static void nav_cb(lv_event_t *e) { show_page((int)(intptr_t)lv_event_get_user_data(e)); }
 static void show_cb(lv_event_t *) { door_test(); }
 
+static uint32_t modalSince = 0;
+static void noop_cb(lv_event_t *) {}
+static void lock_cb(lv_event_t *) { nuki_action(false); lv_label_set_text(nukiNote, "Zuschließen wird gesendet …"); }
+static void unlock_ask_cb(lv_event_t *) { modalSince = millis(); lv_obj_clear_flag(modal, LV_OBJ_FLAG_HIDDEN); }
+static void cancel_cb(lv_event_t *) { lv_obj_add_flag(modal, LV_OBJ_FLAG_HIDDEN); }
+static void unlock_go_cb(lv_event_t *) { lv_obj_add_flag(modal, LV_OBJ_FLAG_HIDDEN); nuki_action(true); lv_label_set_text(nukiNote, "Aufschließen wird gesendet …"); }
+
 static void build_start(lv_obj_t *p) {
   clockL = ui_label(p, fClock, C_TEXT, "--:--", 30, 6);
   dateL = ui_label(p, f20, C_MU, " ", 34, 98);
@@ -60,13 +68,31 @@ static void build_start(lv_obj_t *p) {
   lv_obj_t *nk = ui_glass(p, 410, 150, 358, 250, 20);
   nukiIcon = ui_icon(nk, fi28, C_DM, IC_LOCK, 22, 18);
   nukiName = ui_label_w(nk, f28, C_TEXT, "Schloss", 66, 14, 280, LV_TEXT_ALIGN_LEFT);
-  nukiState = ui_label_w(nk, f28, C_TEXT, " ", 22, 76, 316, LV_TEXT_ALIGN_LEFT);
-  nukiDoorIcon = ui_icon(nk, fi16, C_MU, IC_DOOR_CLOSED, 22, 128);
-  nukiDoor = ui_label_w(nk, f16, C_MU, " ", 52, 126, 286, LV_TEXT_ALIGN_LEFT);
-  nukiBatIcon = ui_icon(nk, fi16, C_MU, IC_BATTERY_FULL, 22, 158);
-  nukiBat = ui_label_w(nk, f16, C_MU, " ", 52, 156, 286, LV_TEXT_ALIGN_LEFT);
-  nukiNote = ui_label_w(nk, f14, C_DM, " ", 22, 196, 316, LV_TEXT_ALIGN_LEFT);
-  lv_obj_set_height(nukiNote, 40);
+  nukiState = ui_label_w(nk, f28, C_TEXT, " ", 22, 60, 316, LV_TEXT_ALIGN_LEFT);
+  nukiDoorIcon = ui_icon(nk, fi16, C_MU, IC_DOOR_CLOSED, 22, 104);
+  nukiDoor = ui_label_w(nk, f16, C_MU, " ", 52, 102, 286, LV_TEXT_ALIGN_LEFT);
+  nukiBatIcon = ui_icon(nk, fi16, C_MU, IC_BATTERY_FULL, 22, 132);
+  nukiBat = ui_label_w(nk, f16, C_MU, " ", 52, 130, 286, LV_TEXT_ALIGN_LEFT);
+  btnLock = ui_button_i(nk, 22, 166, 154, 40, IC_LOCK, "Zu", C_OK, lock_cb, nullptr);
+  btnUnlock = ui_button_i(nk, 184, 166, 154, 40, IC_LOCK_OPEN, "Auf", C_WARM, unlock_ask_cb, nullptr);
+  nukiNote = ui_label_w(nk, f14, C_DM, " ", 22, 214, 316, LV_TEXT_ALIGN_LEFT);
+  lv_obj_set_height(nukiNote, 20);
+
+  // Rückfrage zum Aufschließen: gedrückt halten, damit nichts aus Versehen aufgeht
+  modal = ui_plain(lv_layer_top(), 0, 0, SCREEN_W, SCREEN_H);
+  lv_obj_set_style_bg_color(modal, lv_color_black(), 0);
+  lv_obj_set_style_bg_opa(modal, LV_OPA_70, 0);
+  lv_obj_add_flag(modal, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_t *mc = ui_plain(modal, 140, 110, 520, 250);
+  lv_obj_set_style_radius(mc, 20, 0);
+  lv_obj_set_style_bg_color(mc, lv_color_hex(0x1b2238), 0);
+  lv_obj_set_style_bg_opa(mc, LV_OPA_COVER, 0);
+  modalTitle = ui_label_w(mc, f28, 0xeef0f4, "Tür aufschließen?", 0, 28, 520, LV_TEXT_ALIGN_CENTER);
+  ui_label_w(mc, f16, 0xa9b4d0, "Zum Bestätigen die Taste gedrückt halten", 0, 84, 520, LV_TEXT_ALIGN_CENTER);
+  lv_obj_t *go = ui_button_i(mc, 30, 150, 270, 60, IC_LOCK_OPEN, "Gedrückt halten", C_WARM, noop_cb, nullptr);
+  lv_obj_add_event_cb(go, unlock_go_cb, LV_EVENT_LONG_PRESSED, nullptr);
+  ui_button(mc, 320, 150, 170, 60, "Abbrechen", C_ACC, cancel_cb, nullptr);
+  lv_obj_add_flag(modal, LV_OBJ_FLAG_HIDDEN);
 }
 
 // TinyTTF legt den Cache für (Cachegröße / Schriftgröße²) Zeichen an: zu klein gewählt sind es null Einträge und das
@@ -186,6 +212,7 @@ void ui_init() {
   fi16 = ttf(font_icons, font_icons_len, 16);
   fi20 = ttf(font_icons, font_icons_len, 20);
   fi28 = ttf(font_icons, font_icons_len, 28);
+  for (lv_indev_t *d = lv_indev_get_next(nullptr); d; d = lv_indev_get_next(d)) d->driver->long_press_time = 900;   // Gedrückthalten zum Bestätigen
   prefs_load();
   ui_theme_apply(prefs.theme == 1);
   ui_door_init();                           // vor build_all(): die Helligkeits-Schicht muss darüber liegen
@@ -256,6 +283,10 @@ static void refresh_nuki() {
     return;
   }
   const NukiInfo n = nuki_get();
+  const bool ctl = cfg.nctl && cfg.ntoken.length() && n.valid;
+  if (ctl) { lv_obj_clear_flag(btnLock, LV_OBJ_FLAG_HIDDEN); lv_obj_clear_flag(btnUnlock, LV_OBJ_FLAG_HIDDEN); }
+  else { lv_obj_add_flag(btnLock, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(btnUnlock, LV_OBJ_FLAG_HIDDEN); lv_obj_add_flag(modal, LV_OBJ_FLAG_HIDDEN); }
+  if (!lv_obj_has_flag(modal, LV_OBJ_FLAG_HIDDEN) && millis() - modalSince > 15000) lv_obj_add_flag(modal, LV_OBJ_FLAG_HIDDEN);   // Rückfrage nach 15 s von selbst weg
   if (!cfg.ntoken.length()) { lv_label_set_text(nukiState, "Token fehlt"); lv_label_set_text(nukiNote, "Auf der Webseite des Displays eintragen"); lv_label_set_text(nukiDoor, " "); lv_label_set_text(nukiDoorIcon, " "); lv_label_set_text(nukiBatIcon, " "); lv_label_set_text(nukiBat, " "); return; }
   if (!n.valid) {
     lv_label_set_text(nukiState, n.err[0] ? "Keine Daten" : "Wird abgefragt …");
@@ -280,7 +311,8 @@ static void refresh_nuki() {
   lv_obj_set_style_text_color(nukiBatIcon, lv_color_hex(n.critical ? C_HOT : C_MU), 0);
   lv_obj_set_style_text_color(nukiBat, lv_color_hex(n.critical ? C_HOT : C_MU), 0);
   const uint32_t age = (millis() - n.at) / 1000;
-  if (n.err[0]) snprintf(b, sizeof b, "%s", n.err);
+  if (n.msg[0] && millis() - n.msgAt < 12000) snprintf(b, sizeof b, "%s", n.msg);
+  else if (n.err[0]) snprintf(b, sizeof b, "%s", n.err);
   else snprintf(b, sizeof b, "Stand vor %u s", (unsigned)age);
   lv_label_set_text(nukiNote, b);
 }

@@ -47,7 +47,7 @@ void prefs_save() {
   p.end();
 }
 
-static lv_obj_t *swDoor, *vDoorSecs, *infoDoor, *infoNuki, *infoStats;
+static lv_obj_t *swDoor, *vDoorSecs, *infoDoor, *infoNuki, *infoStats, *swNuki, *swNukiCtl;
 static lv_obj_t *swNight, *swOff, *fromL, *toL, *infoWifi, *infoIp, *infoFw, *infoMem, *infoSub, *infoWeb;
 static lv_obj_t *vTheme, *vBg, *vDim, *vSaver, *vMin, *vBright, *vSBright, *infoPin;
 static lv_obj_t *overlay, *ovClock, *ovDate;
@@ -59,6 +59,7 @@ static void hhmm(char *b, size_t n, int m) { m = (m % 1440 + 1440) % 1440; snpri
 static void sw_cb(lv_event_t *e) {
   const int id = (int)(intptr_t)lv_event_get_user_data(e);
   const bool on = lv_obj_has_state(lv_event_get_target(e), LV_STATE_CHECKED);
+  if (id == 4) { cfg.nctl = on; cfg_save_door(); ui_refresh(); return; }
   if (id == 3) { cfg.nuki = on; cfg_save_door(); nuki_refresh(); ui_refresh(); return; }
   if (id == 2) { cfg.door = on; cfg_save_door(); page_settings_refresh(); return; }
   if (id == 0) prefs.nightOn = on; else prefs.nightOff = on;
@@ -249,10 +250,12 @@ void page_settings_build(lv_obj_t *p) {
   // Nuki-Schloss
   y = 88;
   lv_obj_t *ck = row_card(grp[5], y, IC_LOCK, "Schloss auf der Startseite", "Zeigt Zustand, Tür und Batterie deines Nuki-Schlosses");
-  toggle(ck, 3, cfg.nuki); y += dy;
+  swNuki = toggle(ck, 3, cfg.nuki); y += dy;
+  lv_obj_t *ct = row_card(grp[5], y, IC_LOCK_OPEN, "Schloss bedienen", "Auf- und Zuschließen am Display; Aufschließen nur mit Gedrückthalten");
+  swNukiCtl = toggle(ct, 4, cfg.nctl); y += dy;
   lv_obj_t *cn = solid_card(grp[5], y, 96);
   infoNuki = ui_icon_text(cn, IC_LOCK, C_ACC, " ", f14, C_TEXT, 22, 12);
-  ui_label(cn, f14, C_DM, "Den API-Token (web.nuki.io, API & Integrationen) trägst du auf der Webseite des Displays ein", 22, 38);
+  ui_label(cn, f14, C_DM, "API-Token (web.nuki.io) auf der Webseite eintragen; zum Bedienen braucht er das Recht zum Ausführen", 22, 38);
   ui_button(cn, 22, 58, 170, 32, "Jetzt abfragen", C_ACC, [](lv_event_t *) { nuki_refresh(); }, nullptr);
 
   // Dieses Display
@@ -303,6 +306,8 @@ void page_settings_refresh() {
   snprintf(b, sizeof b, "%d s", cfg.dsecs);
   lv_label_set_text(vDoorSecs, b);
   if (cfg.door) lv_obj_add_state(swDoor, LV_STATE_CHECKED); else lv_obj_clear_state(swDoor, LV_STATE_CHECKED);
+  if (cfg.nuki) lv_obj_add_state(swNuki, LV_STATE_CHECKED); else lv_obj_clear_state(swNuki, LV_STATE_CHECKED);
+  if (cfg.nctl) lv_obj_add_state(swNukiCtl, LV_STATE_CHECKED); else lv_obj_clear_state(swNukiCtl, LV_STATE_CHECKED);
   if (tileSub[0]) {
     char t[64];
     snprintf(t, sizeof t, "%s · Helligkeit %d %%", prefs.theme == 0 ? "Dunkel" : prefs.theme == 1 ? "Hell" : "Automatisch", prefs.bright);
@@ -314,7 +319,7 @@ void page_settings_refresh() {
     lv_label_set_text(tileSub[3], "WLAN, Adresse, Firmware, Speicher");
     snprintf(t, sizeof t, cfg.door ? "An · %d s" : "Aus", cfg.dsecs);
     lv_label_set_text(tileSub[4], t);
-    lv_label_set_text(tileSub[5], cfg.nuki ? (cfg.ntoken.length() ? "An" : "An · Token fehlt") : "Aus");
+    lv_label_set_text(tileSub[5], cfg.nuki ? (cfg.ntoken.length() ? (cfg.nctl ? "An · bedienbar" : "An · nur Anzeige") : "An · Token fehlt") : "Aus");
   }
 }
 

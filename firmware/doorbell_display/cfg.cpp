@@ -28,6 +28,7 @@ void cfg_load() {
   cfg.dpass = p.getString("dPass", "");
   cfg.durl = p.getString("dUrl", "");
   cfg.nuki = p.getBool("kOn", false);
+  cfg.nctl = p.getBool("kCtl", false);
   cfg.ntoken = p.getString("kTok", "");
   p.end();
 }
@@ -54,6 +55,7 @@ void cfg_save_door() {
   p.putString("dPass", cfg.dpass);
   p.putString("dUrl", cfg.durl);
   p.putBool("kOn", cfg.nuki);
+  p.putBool("kCtl", cfg.nctl);
   p.putString("kTok", cfg.ntoken);
   p.end();
 }
