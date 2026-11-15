@@ -210,6 +210,11 @@ static void handle_list() {
   server.send(200, "application/json", j);
 }
 
+static void handle_door() {
+  if (!authed()) return;
+  server.send(200, "text/plain; charset=utf-8", String(door_status()) + "\n" + door_stats() + "\n");
+}
+
 static void handle_prefs() {
   if (!authed()) return;
   if (server.method() == HTTP_POST) {
@@ -316,6 +321,7 @@ void web_loop() {
     server.on("/api/list", HTTP_GET, handle_list);
     server.on("/img", HTTP_GET, handle_img);
     server.on("/api/prefs", HTTP_ANY, handle_prefs);
+    server.on("/api/door", HTTP_GET, handle_door);
     server.on("/delete", HTTP_POST, handle_delete);
     server.on("/upload", HTTP_POST, handle_upload_done, handle_upload_data);
     server.begin();

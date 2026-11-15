@@ -28,6 +28,8 @@ static volatile bool want = false;
 static volatile bool dismissReq = false, testReq = false;
 static volatile uint32_t endAt = 0;         // millis, an dem die Anzeige endet
 static char status[96] = "aus";
+static char rawText[150] = "";
+static char outText[260];
 static volatile time_t lastMotionT = 0;
 static WiFiClient plain;
 static WiFiClientSecure secure;              // die Klingel hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
@@ -166,10 +168,25 @@ static int poll_motion() {
       return -1;
     }
     set_status("verbunden");
-    if (useMd) return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") ? 1 : 0;
-    // GetEvents: Bewegung (md) oder erkannte Person bzw. Besucher (Klingeltaste)
-    return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") || strstr(b, "\"visitor\" : 1") || strstr(b, "\"visitor\":1") ||
-           strstr(b, "\"people\" : 1") || strstr(b, "\"people\":1") ? 1 : 0;
+    {  // Fehlersuche: jeder alarm_state mit seinem Namen, z. B. "md=1 people=0"
+      size_t k = 0;
+      rawText[0] = 0;
+      for (const char *q = strstr(b, "alarm_state"); q && k < sizeof rawText - 12; q = strstr(q + 11, "alarm_state")) {
+        const char *o = q;
+        while (o > b && *o != '{') o--;                       // öffnende Klammer des Blocks
+        const char *e = o;
+        while (e > b && (*e == '{' || *e == ' ' || *e == ':' || *e == '"' || *e == '\n' || *e == '\t' || *e == '\r')) e--;
+        const char *st = e;
+        while (st > b && *(st - 1) != '"') st--;
+        const char *v = q + 11;
+        while (*v && (*v == '"' || *v == ' ' || *v == ':')) v++;
+        k += snprintf(rawText + k, sizeof rawText - k, "%.*s=%c ", (int)(e - st + 1), st, *v);
+      }
+      if (!k) { for (const char *q = b; *q && k < sizeof rawText - 1; q++) if (*q > ' ' && *q != '"') rawText[k++] = *q; rawText[k] = 0; }
+    }
+    // Antwort enthält je nach Modell "state" (GetMdState) oder "alarm_state" (GetEvents: md, ai.people, visitor ...) mit Wert 1
+    return strstr(b, "\"state\" : 1") || strstr(b, "\"state\":1") || strstr(b, "alarm_state\" : 1") || strstr(b, "alarm_state\":1") ||
+           strstr(b, "\"visitor\" : 1") || strstr(b, "\"visitor\":1") ? 1 : 0;
   }
   if (token.length()) set_status("Klingel versteht die Abfrage nicht");
   return -1;
@@ -217,9 +234,10 @@ static char stText[96] = "";
 
 // Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
 const char *door_stats() {
-  if (!stBytes) return "noch kein Bild geholt";
-  snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)stFirst);
-  return stText;
+  if (!stBytes) strcpy(stText, "noch kein Bild geholt");
+  else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)stFirst);
+  snprintf(outText, sizeof outText, "%s\nAntwort: %s", stText, rawText);
+  return outText;
 }
 
 static bool grab_frame(int wr) {
