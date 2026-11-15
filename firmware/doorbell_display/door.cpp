@@ -155,7 +155,9 @@ static int poll_motion() {
   bool swapped = false;
   for (int tries = 0; tries < 4; tries++) {
     if (!token.length() && !login()) return -1;
-    const int n = fetch(api(useMd ? "GetMdState" : "GetEvents", ""), body, sizeof body - 1);
+    // Bewegung und Ereignisse fragt man per POST mit JSON-Körper ab (GET kennt die Parameter nicht: "check err -3")
+    const String req = String("[{\"cmd\":\"") + (useMd ? "GetMdState" : "GetEvents") + "\",\"action\":0,\"param\":{\"channel\":0}}]";
+    const int n = fetch(base() + "/api.cgi?token=" + enc(token), body, sizeof body - 1, req.c_str());
     if (n < 0) return -1;
     body[n] = 0;
     const char *b = (const char *)body;
