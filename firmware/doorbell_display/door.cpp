@@ -187,10 +187,25 @@ static bool decode(size_t n, uint16_t *out, int *w, int *h) {
   return true;
 }
 
+static volatile uint32_t firstReq = 0;                    // millis der Anforderung, für "erstes Bild nach"
+static volatile uint32_t stFetch = 0, stDec = 0, stBytes = 0, stFirst = 0;
+static volatile int stW = 0, stH = 0;
+static uint32_t stFrames = 0, stSince = 0;
+static char stText[96] = "";
+
+// Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
+const char *door_stats() {
+  if (!stBytes) return "noch kein Bild geholt";
+  snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)stFirst);
+  return stText;
+}
+
 static bool grab_frame(int wr) {
-  String url = cfg.durl.length() ? cfg.durl : (token.length() || login()) ? api("Snap", (String("&snapType=sub&rs=") + String((uint32_t)esp_random(), HEX)).c_str()) : String();
+  String url = cfg.durl.length() ? cfg.durl : (token.length() || login()) ? api("Snap", (String("&snapType=sub&width=640&height=480&rs=") + String((uint32_t)esp_random(), HEX)).c_str()) : String();
   if (!url.length()) return false;
+  const uint32_t t0 = millis();
   const int n = fetch(url, jpg, JPG_MAX);
+  const uint32_t t1 = millis();
   if (n < 4 || jpg[0] != 0xFF || jpg[1] != 0xD8) {
     if (n >= 0) {
       if (n < JPG_MAX) jpg[n] = 0;
@@ -202,6 +217,8 @@ static bool grab_frame(int wr) {
   }
   int w, h;
   if (!decode(n, buf[wr], &w, &h)) return false;
+  stFetch = t1 - t0; stDec = millis() - t1; stBytes = n; stW = w; stH = h;
+  if (seq == 0) stFirst = millis() - firstReq;
   pubW = w; pubH = h; pubIdx = wr;
   seq = seq + 1;
   return true;
@@ -232,9 +249,9 @@ static void task(void *) {
     if (dismissReq) { dismissReq = false; want = false; armed = false; }
     if (testReq) {
       testReq = false;
-      if (alloc_buffers()) { want = true; start = lastMotion = now; noFrameSince = now; seq = 0; pubIdx = -1; endAt = now + cfg.dsecs * 1000u; }
+      if (alloc_buffers()) { firstReq = now; want = true; start = lastMotion = now; noFrameSince = now; seq = 0; pubIdx = -1; endAt = now + cfg.dsecs * 1000u; }
     }
-    if (now - lastPoll >= (want ? 1500u : 1000u)) {
+    if (now - lastPoll >= (want ? 3000u : 1000u)) {
       lastPoll = now;
       const int m = poll_motion();
       if (m == 0) armed = true;
@@ -242,7 +259,7 @@ static void task(void *) {
         lastMotion = millis();
         if (net_time_ok()) lastMotionT = time(nullptr);
         if (!want && armed && alloc_buffers()) {
-          want = true; start = lastMotion; noFrameSince = lastMotion; seq = 0; pubIdx = -1;
+          firstReq = millis(); want = true; start = lastMotion; noFrameSince = lastMotion; seq = 0; pubIdx = -1;
         }
         if (want) endAt = lastMotion + cfg.dsecs * 1000u;
       }

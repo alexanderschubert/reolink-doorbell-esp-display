@@ -47,7 +47,7 @@ void prefs_save() {
   p.end();
 }
 
-static lv_obj_t *swDoor, *vDoorSecs, *infoDoor, *infoNuki;
+static lv_obj_t *swDoor, *vDoorSecs, *infoDoor, *infoNuki, *infoStats;
 static lv_obj_t *swNight, *swOff, *fromL, *toL, *infoWifi, *infoIp, *infoFw, *infoMem, *infoSub, *infoWeb;
 static lv_obj_t *vTheme, *vBg, *vDim, *vSaver, *vMin, *vBright, *vSBright, *infoPin;
 static lv_obj_t *overlay, *ovClock, *ovDate;
@@ -240,10 +240,11 @@ void page_settings_build(lv_obj_t *p) {
   lv_obj_t *cd = row_card(grp[4], y, IC_BELL, "Live-Bild bei Bewegung", "Zeigt das Bild der Klingel, Berührung schließt es");
   swDoor = toggle(cd, 2, cfg.door); y += dy;
   vDoorSecs = stepper(grp[4], y, IC_HOURGLASS, "Anzeigedauer", "Ab der letzten erkannten Bewegung", 20); y += dy;
-  lv_obj_t *cs = solid_card(grp[4], y, 96);
+  lv_obj_t *cs = solid_card(grp[4], y, 120);
   infoDoor = ui_icon_text(cs, IC_BELL, C_ACC, " ", f14, C_TEXT, 22, 12);
   ui_label(cs, f14, C_DM, "Adresse und Zugang der Klingel trägst du auf der Webseite des Displays ein", 22, 38);
   ui_button(cs, 22, 58, 170, 32, "Jetzt testen", C_ACC, [](lv_event_t *) { door_test(); }, nullptr);
+  infoStats = ui_label_w(cs, f14, C_DM, " ", 22, 96, 690, LV_TEXT_ALIGN_LEFT);
 
   // Nuki-Schloss
   y = 88;
@@ -336,6 +337,7 @@ static void info_tick() {
   lv_label_set_text(infoWeb, b);
   snprintf(b, sizeof b, "Klingel: %s · %s", cfg.dhost.length() ? cfg.dhost.c_str() : "keine Adresse", door_status());
   lv_label_set_text(infoDoor, b);
+  lv_label_set_text(infoStats, door_stats());
   const NukiInfo n = nuki_get();
   if (!cfg.nuki) snprintf(b, sizeof b, "Nuki: aus");
   else if (!cfg.ntoken.length()) snprintf(b, sizeof b, "Nuki: Token fehlt");
