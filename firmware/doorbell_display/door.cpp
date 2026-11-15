@@ -152,7 +152,8 @@ static String api(const char *cmd, const char *extra) {
 static int poll_motion() {
   static bool useMd = false;
   static uint8_t body[1536];
-  for (int tries = 0; tries < 3; tries++) {
+  bool swapped = false;
+  for (int tries = 0; tries < 4; tries++) {
     if (!token.length() && !login()) return -1;
     const int n = fetch(api(useMd ? "GetMdState" : "GetEvents", ""), body, sizeof body - 1);
     if (n < 0) return -1;
@@ -161,8 +162,8 @@ static int poll_motion() {
     if (!strstr(b, "\"code\" : 0") && !strstr(b, "\"code\":0")) {
       const String rc = json_val(b, "rspCode");
       if (rc == "-6" || rc == "-5" || strstr(b, "login")) { token = ""; continue; }   // Marke abgelaufen: neu anmelden
-      if (rc == "-9" || rc == "-3" || strstr(b, "not support")) { useMd = !useMd; continue; }   // Befehl nicht vorhanden: den anderen versuchen
       set_error(useMd ? "GetMdState" : "GetEvents", b);
+      if (!swapped) { swapped = true; useMd = !useMd; continue; }   // Befehl unbekannt (z. B. -9, -104): den anderen versuchen
       return -1;
     }
     set_status("verbunden");
