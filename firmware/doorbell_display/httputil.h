@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <Stream.h>
 
-// Kleine Hilfen für HTTP-Antworten (Klingel und Nuki)
+// Kleine Hilfen für HTTP-Antworten (Türspion und Nuki)
 
 // Antwort in einen festen Puffer sammeln (auch bei "chunked"-Übertragung)
 struct BufStream : public Stream {

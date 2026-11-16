@@ -1,4 +1,4 @@
-﻿# Türklingel-Display flashen (Windows). Start über flash-windows.bat (Doppelklick) oder:
+﻿# Türspion-Display flashen (Windows). Start über flash-windows.bat (Doppelklick) oder:
 #   powershell -ExecutionPolicy Bypass -File flash-windows.ps1 [Datei.bin] [-Check]
 # Sucht die Firmware (Argument, Ordner des Skripts, Downloads, sonst das neueste GitHub-Release über "gh"),
 # richtet beim ersten Mal esptool in einer eigenen Umgebung ein und spielt sie auf das Board auf.
@@ -11,7 +11,7 @@ $Home2 = Join-Path $env:LOCALAPPDATA "doorbell-display-flasher"
 Set-Location $PSScriptRoot
 
 function Fail($m) { Write-Host "`n$m" -ForegroundColor Red; Read-Host "Zum Beenden Enter drücken"; exit 1 }
-Write-Host "`nTürklingel-Display flashen" -ForegroundColor White
+Write-Host "`nTürspion-Display flashen" -ForegroundColor White
 
 # 1. Python und esptool
 $py = $null
@@ -82,5 +82,5 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "`nFertig. Das Display startet neu und zeigt die Einrichtung:" -ForegroundColor Green
 Write-Host "  1. Mit dem WLAN 'Doorbell-Display-Setup' verbinden (Kennwort steht auf dem Display)"
-Write-Host "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten der Klingel eintragen"
+Write-Host "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten des Türspions eintragen"
 Read-Host "`nZum Beenden Enter drücken"

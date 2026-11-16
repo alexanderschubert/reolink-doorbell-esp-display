@@ -1,5 +1,5 @@
 #!/bin/bash
-# Türklingel-Display flashen (macOS): Doppelklick oder im Terminal ausführen.
+# Türspion-Display flashen (macOS): Doppelklick oder im Terminal ausführen.
 #   flash-macos.command [Datei.bin] [--check]
 # Sucht die Firmware (Argument, Ordner dieses Skripts, Downloads, sonst das neueste GitHub-Release über "gh"),
 # richtet beim ersten Mal esptool in einer eigenen Umgebung ein und spielt sie auf das Board auf.
@@ -15,7 +15,7 @@ for a in "$@"; do case "$a" in --check) CHECK=1;; *) BIN="$a";; esac; done
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 die() { printf '\n\033[31m%s\033[0m\n' "$*"; echo; read -r -p "Zum Beenden Enter drücken …" _; exit 1; }
 
-say "Türklingel-Display flashen"
+say "Türspion-Display flashen"
 
 # 1. esptool bereitstellen
 command -v python3 >/dev/null || die "python3 fehlt. Installiere die Kommandozeilen-Werkzeuge:  xcode-select --install"
@@ -71,6 +71,6 @@ say "Spiele die Firmware auf …"
 
 say "Fertig. Das Display startet neu und zeigt die Einrichtung:"
 echo "  1. Mit dem WLAN \"Doorbell-Display-Setup\" verbinden (Kennwort steht auf dem Display)"
-echo "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten der Klingel eintragen"
+echo "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten des Türspions eintragen"
 echo
 read -r -p "Zum Beenden Enter drücken …" _

@@ -12,7 +12,7 @@
 #include "config.h"
 #include "net.h"
 
-// Bewegung: Abfrage der Klingel per HTTP (GetEvents, ältere Firmware: GetMdState), einmal pro Sekunde.
+// Bewegung: Abfrage des Türspions per HTTP (GetEvents, ältere Firmware: GetMdState), einmal pro Sekunde.
 // Bild: Snap des Türspions (Substream) oder eine eigene JPEG-Adresse; dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3.
 static const size_t JPG_MAX = 512 * 1024;
 static const int POOL = 8192;
@@ -89,15 +89,15 @@ static String enc(const String &s) {
   return o;
 }
 
-// Die Klingel antwortet meist nur auf HTTPS (HTTP wird dorthin umgeleitet). Ohne Angabe gilt HTTPS; "http://" erzwingt HTTP.
+// Der Türspion antwortet meist nur auf HTTPS (HTTP wird dorthin umgeleitet). Ohne Angabe gilt HTTPS; "http://" erzwingt HTTP.
 static String base() {
   if (cfg.dhost.startsWith("http://") || cfg.dhost.startsWith("https://")) return cfg.dhost;
   return String("https://") + cfg.dhost;
 }
 
-static String token;                         // Anmeldemarke der Klingel (Login); leer: noch nicht angemeldet
+static String token;                         // Anmeldemarke des Türspions (Login); leer: noch nicht angemeldet
 
-// Antwort der Klingel holen. post: JSON-Körper (POST) oder nullptr (GET). Rückgabe: Länge oder -1.
+// Antwort des Türspions holen. post: JSON-Körper (POST) oder nullptr (GET). Rückgabe: Länge oder -1.
 static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post = nullptr) {
   const bool tls = url.startsWith("https");
   if (tls) secure.setInsecure();
@@ -117,7 +117,7 @@ static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post =
   return (int)bs.n;
 }
 
-// Kurzfassung eines Fehlers der Klingel für die Anzeige: Befehl, rspCode und Text
+// Kurzfassung eines Fehlers des Türspions für die Anzeige: Befehl, rspCode und Text
 static void set_error(const char *what, const char *b) {
   String d = json_val(b, "detail"), c = json_val(b, "rspCode");
   set_status("%s: %s (%s)", what, d.length() ? d.c_str() : "?", c.length() ? c.c_str() : "?");

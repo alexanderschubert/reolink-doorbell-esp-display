@@ -8,7 +8,7 @@ struct Cfg {
   String ssid, pass;
   bool door;      // Live-Bild bei Bewegung an
   int dsecs;      // Anzeigedauer in Sekunden (ab der letzten erkannten Bewegung)
-  String dhost, duser, dpass;   // Adresse (IP, optional :Port) und Zugang der Klingel
+  String dhost, duser, dpass;   // Adresse (IP, optional :Port) und Zugang des Türspions
   bool nuki;      // Nuki-Schloss auf der Startseite zeigen
   bool nctl;      // Schloss vom Display aus bedienen (auf-/zuschließen)
   String ntoken;  // API-Token der Nuki-Web-API
