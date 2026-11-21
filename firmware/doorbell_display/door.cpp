@@ -363,5 +363,7 @@ void door_begin() {
   lastMotionT = (time_t)p.getULong("dLast", 0);       // die letzte Bewegung übersteht einen Neustart
   p.end();
   xTaskCreatePinnedToCore(task, "door", 8192, nullptr, 1, nullptr, 1);
-  xTaskCreatePinnedToCore(decode_task, "doordec", 12288, nullptr, 1, nullptr, 1);   // Kern 1 wie loop(); das Zeichnen läuft auf Kern 0
+  // Höhere Priorität als der Abruf-Task: der wartet in einer Schleife auf die Kamera (HTTPClient) und würde dem Dekodieren sonst
+// bei gleicher Priorität Rechenzeit wegnehmen (Dekodieren dauerte ~400 ms, egal mit welchem Dekoder).
+  xTaskCreatePinnedToCore(decode_task, "doordec", 12288, nullptr, 3, nullptr, 1);   // Kern 1 wie loop(); das Zeichnen läuft auf Kern 0
 }
