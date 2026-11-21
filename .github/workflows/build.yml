@@ -41,13 +41,13 @@ jobs:
           mkdir -p "$HOME/Arduino/libraries"
           cp -R "$DEMO"/libraries/. "$HOME/Arduino/libraries/"
           LVCONF="$(find "$HOME/Arduino/libraries" -name lv_conf.h | head -1)"
-          firmware/tools/patch-lv-conf.sh "$LVCONF"
+          bash firmware/tools/patch-lv-conf.sh "$LVCONF"
 
       - name: Firmware übersetzen (Release-Variante)
         working-directory: firmware
         run: |
           pip install esptool
-          ./build.sh release
+          bash ./build.sh release
 
       - name: Firmware als Artefakt
         uses: actions/upload-artifact@v4
