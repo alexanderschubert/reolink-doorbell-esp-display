@@ -14,13 +14,22 @@
 
 // Bewegung: Abfrage des Türspions per HTTP (GetEvents, ältere Firmware: GetMdState), einmal pro Sekunde.
 // Bild: Snap des Türspions (Substream) oder eine eigene JPEG-Adresse; dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3.
-static const size_t JPG_MAX = 512 * 1024;
+static const size_t JPG_MAX = 320 * 1024;
 static const int POOL = 8192;
 static const uint32_t CAP_MS = 300000;      // so lange höchstens am Stück, auch bei Dauerbewegung
 static const uint32_t NOFRAME_MS = 8000;    // kommt bis dahin kein Bild, wird abgebrochen
 
-static uint8_t *jpg = nullptr;
-static uint16_t *buf[2] = {nullptr, nullptr};
+// Bildkette: Der Abruf-Task holt das nächste JPEG (jpg[fi]), während der Dekodier-Task das vorige dekodiert. So überlappen sich
+// Netzwerk und Rechnen, und die Bildrate hängt vom langsameren der beiden ab, nicht von der Summe.
+// Dekodiert wird in einen von bis zu drei Puffern, der weder gerade gezeigt (pubIdx) noch zuletzt gezeigt (prevIdx) wurde,
+// damit der Zeichentask nie in ein Bild liest, das gerade überschrieben wird.
+static uint8_t *jpg[2] = {nullptr, nullptr};
+static int jpgLen[2] = {0, 0};
+static volatile int job = -1;               // Index des JPEGs, das der Dekodier-Task als Nächstes nimmt
+static volatile bool decBusy = false;       // true von der Übergabe bis das Bild fertig ist
+static int prevIdx = -1;
+static int nbuf = 0;                        // Anzahl Bildpuffer (2 oder 3)
+static uint16_t *buf[3] = {nullptr, nullptr, nullptr};
 static void *pool = nullptr;
 static volatile int pubIdx = -1, pubW = 0, pubH = 0;
 static volatile uint32_t seq = 0;
@@ -212,8 +221,8 @@ static UINT out_cb(JDEC *jd, void *bitmap, JRECT *rc) {
   return 1;
 }
 
-static bool decode(size_t n, uint16_t *out, int *w, int *h) {
-  Ctx c = {jpg, n, 0, out, 0};
+static bool decode(const uint8_t *data, size_t n, uint16_t *out, int *w, int *h) {
+  Ctx c = {data, n, 0, out, 0};
   JDEC jd;
   if (jd_prepare(&jd, in_cb, pool, POOL, &c) != JDR_OK) { set_status("Bild ist kein lesbares JPEG"); return false; }
   int sc = 0;
@@ -229,55 +238,87 @@ static bool decode(size_t n, uint16_t *out, int *w, int *h) {
 static volatile uint32_t firstReq = 0;                    // millis der Anforderung, für "erstes Bild nach"
 static volatile uint32_t stFetch = 0, stDec = 0, stBytes = 0, stFirst = 0;
 static volatile int stW = 0, stH = 0;
-static uint32_t stFrames = 0, stSince = 0;
-static char stText[96] = "";
+static uint32_t stFrames = 0, stSince = 0, stFps10 = 0;
+static char stText[112] = "";
 
 // Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
 const char *door_stats() {
   if (!stBytes) strcpy(stText, "noch kein Bild geholt");
-  else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)stFirst);
+  else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, %u.%u fps, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)(stFps10 / 10), (unsigned)(stFps10 % 10), (unsigned)stFirst);
   snprintf(outText, sizeof outText, "%s\nAntwort: %s", stText, rawText);
   return outText;
 }
 
-static bool grab_frame(int wr) {
+// Holt ein JPEG in jpg[fi] und übergibt es dem Dekodier-Task (wartet, falls der noch am vorigen Bild arbeitet).
+static bool grab_frame(int fi) {
   String url = cfg.durl.length() ? cfg.durl : (token.length() || login()) ? api("Snap", (String("&snapType=sub&width=640&height=480&rs=") + String((uint32_t)esp_random(), HEX)).c_str()) : String();
   if (!url.length()) return false;
   const uint32_t t0 = millis();
-  const int n = fetch(url, jpg, JPG_MAX);
+  const int n = fetch(url, jpg[fi], JPG_MAX);
   const uint32_t t1 = millis();
-  if (n < 4 || jpg[0] != 0xFF || jpg[1] != 0xD8) {
+  if (n < 4 || jpg[fi][0] != 0xFF || jpg[fi][1] != 0xD8) {
     if (n >= 0) {
-      if (n < JPG_MAX) jpg[n] = 0;
-      const String rc = json_val((const char *)jpg, "rspCode");
+      if (n < (int)JPG_MAX) jpg[fi][n] = 0;
+      const String rc = json_val((const char *)jpg[fi], "rspCode");
       if (rc == "-6" || rc == "-5") token = "";
-      set_error("Bild", (const char *)jpg);
+      set_error("Bild", (const char *)jpg[fi]);
     }
     return false;
   }
-  int w, h;
-  if (!decode(n, buf[wr], &w, &h)) return false;
-  stFetch = t1 - t0; stDec = millis() - t1; stBytes = n; stW = w; stH = h;
-  if (seq == 0) stFirst = millis() - firstReq;
-  pubW = w; pubH = h; pubIdx = wr;
-  seq = seq + 1;
+  stFetch = t1 - t0; stBytes = n;
+  while (decBusy && want) vTaskDelay(1);
+  jpgLen[fi] = n;
+  job = fi;
+  __sync_synchronize();
+  decBusy = true;
   return true;
 }
 
+// Läuft im eigenen Task: nimmt übergebene JPEGs, dekodiert sie und veröffentlicht das Bild.
+static void decode_task(void *) {
+  for (;;) {
+    if (!decBusy) { vTaskDelay(pdMS_TO_TICKS(2)); continue; }
+    __sync_synchronize();
+    const int fi = job;
+    const uint32_t t1 = millis();
+    int wr = -1;
+    for (int i = 0; i < nbuf; i++) if (i != pubIdx && (nbuf < 3 || i != prevIdx)) { wr = i; break; }
+    int w = 0, h = 0;
+    if (wr >= 0 && decode(jpg[fi], jpgLen[fi], buf[wr], &w, &h)) {
+      stDec = millis() - t1; stW = w; stH = h;
+      if (seq == 0) stFirst = millis() - firstReq;
+      prevIdx = pubIdx;
+      pubW = w; pubH = h; pubIdx = wr;
+      seq = seq + 1;
+      stFrames++;
+      const uint32_t now = millis();
+      if (now - stSince >= 3000) { stFps10 = stFrames * 10000u / (now - stSince); stFrames = 0; stSince = now; }
+    }
+    decBusy = false;
+  }
+}
+
 static bool alloc_buffers() {
-  if (jpg && buf[0] && buf[1] && pool) return true;
-  if (!jpg) jpg = (uint8_t *)heap_caps_malloc(JPG_MAX, MALLOC_CAP_SPIRAM);
-  for (int i = 0; i < 2; i++) if (!buf[i]) buf[i] = (uint16_t *)heap_caps_malloc((size_t)SCREEN_W * SCREEN_H * 2, MALLOC_CAP_SPIRAM);
+  if (nbuf >= 2 && jpg[0] && jpg[1] && pool) return true;
+  for (int i = 0; i < 2; i++) if (!jpg[i]) jpg[i] = (uint8_t *)heap_caps_malloc(JPG_MAX, MALLOC_CAP_SPIRAM);
+  for (int i = 0; i < 3; i++) if (!buf[i]) buf[i] = (uint16_t *)heap_caps_malloc((size_t)SCREEN_W * SCREEN_H * 2, MALLOC_CAP_SPIRAM);   // der dritte ist optional
   if (!pool) pool = heap_caps_malloc(POOL, MALLOC_CAP_INTERNAL);
-  const bool ok = jpg && buf[0] && buf[1] && pool;
+  nbuf = buf[0] && buf[1] ? (buf[2] ? 3 : 2) : 0;
+  const bool ok = jpg[0] && jpg[1] && nbuf >= 2 && pool;
   if (!ok) set_status("zu wenig Speicher");
   return ok;
+}
+
+// Neue Anzeige beginnen: wartet auf den Dekodier-Task und setzt die Zähler zurück.
+static void start_session(uint32_t now) {
+  while (decBusy) vTaskDelay(1);
+  firstReq = now; want = true; seq = 0; pubIdx = -1; prevIdx = -1; stFrames = 0; stSince = now; stFps10 = 0;
 }
 
 static void task(void *) {
   uint32_t lastPoll = 0, start = 0, lastMotion = 0, noFrameSince = 0;
   bool armed = true;                          // erst wieder auslösen, wenn die Bewegung einmal aufgehört hat
-  int wr = 0;
+  int fi = 0;
   for (;;) {
     if (!cfg.door || !cfg.dhost.length() || net_setup() || !net_wifi_ok()) {
       want = false;
@@ -289,7 +330,7 @@ static void task(void *) {
     if (dismissReq) { dismissReq = false; want = false; armed = false; }
     if (testReq) {
       testReq = false;
-      if (alloc_buffers()) { firstReq = now; want = true; start = lastMotion = now; noFrameSince = now; seq = 0; pubIdx = -1; endAt = now + cfg.dsecs * 1000u; }
+      if (alloc_buffers()) { start_session(now); start = lastMotion = now; noFrameSince = now; endAt = now + cfg.dsecs * 1000u; }
     }
     if (now - lastPoll >= (want ? 3000u : 1000u)) {
       lastPoll = now;
@@ -308,7 +349,7 @@ static void task(void *) {
           lastMotionT = t;
         }
         if (!want && armed && alloc_buffers()) {
-          firstReq = millis(); want = true; start = lastMotion; noFrameSince = lastMotion; seq = 0; pubIdx = -1;
+          start_session(millis()); start = lastMotion; noFrameSince = lastMotion;
         }
         if (want) endAt = lastMotion + cfg.dsecs * 1000u;
       }
@@ -319,7 +360,7 @@ static void task(void *) {
       if (timeUp || capped || noFrame) {
         want = false;
         if (capped || noFrame) armed = false;
-      } else if (grab_frame(wr)) { wr ^= 1; noFrameSince = millis(); }
+      } else if (grab_frame(fi)) { fi ^= 1; noFrameSince = millis(); }
       else vTaskDelay(pdMS_TO_TICKS(300));
     } else vTaskDelay(pdMS_TO_TICKS(100));
   }
@@ -330,5 +371,6 @@ void door_begin() {
   p.begin("doorbell", true);
   lastMotionT = (time_t)p.getULong("dLast", 0);       // die letzte Bewegung übersteht einen Neustart
   p.end();
-  xTaskCreatePinnedToCore(task, "door", 8192, nullptr, 1, nullptr, 1);   // Kern 1 wie loop(); das Zeichnen läuft auf Kern 0
+  xTaskCreatePinnedToCore(task, "door", 8192, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(decode_task, "doordec", 8192, nullptr, 1, nullptr, 1);   // Kern 1 wie loop(); das Zeichnen läuft auf Kern 0
 }
