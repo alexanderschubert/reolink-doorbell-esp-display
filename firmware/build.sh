@@ -3,7 +3,7 @@
 #   ./build.sh                       übersetzen
 #   ./build.sh upload /dev/cu.usbmodemXXXX    übersetzen und aufspielen
 #
-# Voraussetzungen (siehe README.md): arduino-cli im Pfad, ESP32-Kern 3.0.7, die Bibliotheken aus Waveshares Demo
+# Voraussetzungen (siehe README.md): arduino-cli im Pfad, ESP32-Kern 3.0.7, Bibliothek JPEGDEC, die Bibliotheken aus Waveshares Demo
 # im Arduino-Bibliotheksordner, und WAVESHARE_DEMO zeigt auf den entpackten Ordner "ESP32-S3-Touch-LCD-5-Demo/Arduino".
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

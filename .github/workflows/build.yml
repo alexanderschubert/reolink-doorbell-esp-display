@@ -41,6 +41,7 @@ jobs:
           mkdir -p "$HOME/Arduino/libraries"
           cp -R "$DEMO"/libraries/. "$HOME/Arduino/libraries/"
           arduino-cli lib install lvgl@8.4.0
+          arduino-cli lib install JPEGDEC
           # LVGL sucht lv_conf.h direkt in libraries/ (neben dem lvgl-Ordner)
           LVCONF="$HOME/Arduino/libraries/lv_conf.h"
           if [ ! -f "$LVCONF" ]; then

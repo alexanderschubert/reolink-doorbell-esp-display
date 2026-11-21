@@ -33,7 +33,7 @@ Wer Frigate, go2rtc oder Home Assistant hat, kann dort eine eigene JPEG-Adresse 
 
 ## Selbst bauen
 
-Siehe `firmware/build.sh`. Es braucht `arduino-cli`, den ESP32-Kern 3.0.7, LVGL 8.4 und die Bibliotheken aus Waveshares Demo-ZIP (`files.waveshare.com/wiki/ESP32-S3-Touch-LCD-5/ESP32-S3-Touch-LCD-5-Demo.zip`); `WAVESHARE_DEMO` zeigt auf den entpackten Ordner `.../ESP32-S3-Touch-LCD-5-Demo/Arduino`.
+Siehe `firmware/build.sh`. Es braucht `arduino-cli`, den ESP32-Kern 3.0.7, LVGL 8.4, die Bibliothek JPEGDEC (`arduino-cli lib install JPEGDEC`) und die Bibliotheken aus Waveshares Demo-ZIP (`files.waveshare.com/wiki/ESP32-S3-Touch-LCD-5/ESP32-S3-Touch-LCD-5-Demo.zip`); `WAVESHARE_DEMO` zeigt auf den entpackten Ordner `.../ESP32-S3-Touch-LCD-5-Demo/Arduino`.
 
 ```bash
 cd firmware
@@ -45,7 +45,7 @@ cd firmware
 ## Technik
 
 - Bewegung: HTTP(S)-API des Türspions, `GetEvents` (ältere Firmware: `GetMdState`).
-- Bild: `Snap` (Substream) in schneller Folge, dekodiert mit dem JPEG-Dekoder im ROM des ESP32-S3 in den PSRAM (nur Baseline-JPEG), Anzeige per LVGL auf einer eigenen Ebene.
+- Bild: `Snap` (Substream) in schneller Folge, dekodiert mit dem JPEG-Dekoder JPEGDEC (für den ESP32-S3 optimiert) in den PSRAM (nur Baseline-JPEG), Anzeige per LVGL auf einer eigenen Ebene.
 - Netzwerk und Dekodieren laufen in einem eigenen Task auf Kern 1, das Zeichnen auf Kern 0.
 
 ## Lizenz
