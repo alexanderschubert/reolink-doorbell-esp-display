@@ -38,7 +38,7 @@ arduino-cli compile --fqbn "$FQBN" --output-dir "$BUILD/out" "$BUILD/doorbell_di
 
 if [ "${1:-}" = "release" ]; then
   mkdir -p "$HERE/dist"
-  BOOT0="$(find "$HOME" "$ARDUINO_DIRECTORIES_DATA" -name boot_app0.bin -path '*esp32*' 2>/dev/null | head -1 || true)"
+  BOOT0="$(find "$HOME" "${ARDUINO_DIRECTORIES_DATA:-$HOME/.arduino15}" -name boot_app0.bin -path '*esp32*' 2>/dev/null | head -1 || true)"
   [ -n "$BOOT0" ] || { echo "boot_app0.bin nicht gefunden"; exit 1; }
   OUT="$HERE/dist/doorbell-display-esp32s3-lcd5.bin"
   ${ESPTOOL:-esptool.py} --chip esp32s3 merge_bin -o "$OUT" --flash_mode keep --flash_freq keep --flash_size keep \
@@ -50,7 +50,7 @@ if [ "${1:-}" = "upload" ]; then
   PORT="${2:?Anschluss angeben, z. B. /dev/cu.usbmodem31101}"
   ESPTOOL="${ESPTOOL:-esptool.py}"
   # Einzelteile statt der zusammengefassten Datei: sie überschreibt den ganzen Flash und löscht die hochgeladenen Bilder
-  BOOT0="$(find "$HOME" "$ARDUINO_DIRECTORIES_DATA" -name boot_app0.bin -path '*esp32*' 2>/dev/null | head -1 || true)"
+  BOOT0="$(find "$HOME" "${ARDUINO_DIRECTORIES_DATA:-$HOME/.arduino15}" -name boot_app0.bin -path '*esp32*' 2>/dev/null | head -1 || true)"
   if [ -n "$BOOT0" ]; then
     $ESPTOOL --chip esp32s3 -p "$PORT" -b 921600 write_flash -z 0x0 "$BUILD/out/doorbell_display.ino.bootloader.bin" \
       0x8000 "$BUILD/out/doorbell_display.ino.partitions.bin" 0xe000 "$BOOT0" 0x10000 "$BUILD/out/doorbell_display.ino.bin"
