@@ -104,7 +104,8 @@ static String base() {
 static String token;                         // Anmeldemarke des Türspions (Login); leer: noch nicht angemeldet
 
 // Antwort des Türspions holen. post: JSON-Körper (POST) oder nullptr (GET). Rückgabe: Länge oder -1.
-static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post = nullptr) {
+static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post = nullptr, volatile uint32_t *ttfb = nullptr) {
+  const uint32_t t0 = millis();
   const bool tls = url.startsWith("https");
   if (tls) secure.setInsecure();
   WiFiClient &cl = tls ? (WiFiClient &)secure : plain;
@@ -115,6 +116,7 @@ static int fetch(const String &url, uint8_t *dst, size_t cap, const char *post =
   int code;
   if (post) { http.addHeader("Content-Type", "application/json"); code = http.POST((uint8_t *)post, strlen(post)); }
   else code = http.GET();
+  if (ttfb) *ttfb = millis() - t0;            // bis die Antwort-Köpfe da sind: Wartezeit auf die Kamera
   if (code != 200) { set_status("Türspion antwortet mit %d", code); http.end(); cl.stop(); return -1; }
   BufStream bs(dst, cap);
   http.writeToStream(&bs);
@@ -227,11 +229,11 @@ static bool decode(const uint8_t *data, size_t n, uint16_t *out, int *w, int *h)
 }
 
 static volatile uint32_t firstReq = 0;                    // millis der Anforderung, für "erstes Bild nach"
-static volatile uint32_t stFetch = 0, stDec = 0, stBytes = 0, stFirst = 0;
+static volatile uint32_t stFetch = 0, stDec = 0, stBytes = 0, stFirst = 0, stTtfb = 0;
 static volatile int stW = 0, stH = 0;
 static volatile uint32_t stFps10 = 0;
 static uint32_t lastPubMs = 0, avgDt = 0;
-static char stText[112] = "";
+static char stText[140] = "";
 
 // Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
 // Rohe Antwort der Bewegungsabfrage (nur für /api/door)
@@ -239,7 +241,7 @@ const char *door_raw() { return rawText; }
 
 const char *door_stats() {
   if (!stBytes) strcpy(stText, "noch kein Bild geholt");
-  else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, %u.%u fps, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)(stFps10 / 10), (unsigned)(stFps10 % 10), (unsigned)stFirst);
+  else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms (Kamera %u), Dekodieren %u ms, %u.%u fps, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stTtfb, (unsigned)stDec, (unsigned)(stFps10 / 10), (unsigned)(stFps10 % 10), (unsigned)stFirst);
   return stText;
 }
 
@@ -248,7 +250,7 @@ static bool grab_frame(int fi) {
   String url = cfg.durl.length() ? cfg.durl : (token.length() || login()) ? api("Snap", (String("&snapType=sub&width=640&height=480&rs=") + String((uint32_t)esp_random(), HEX)).c_str()) : String();
   if (!url.length()) return false;
   const uint32_t t0 = millis();
-  const int n = fetch(url, jpg[fi], JPG_MAX);
+  const int n = fetch(url, jpg[fi], JPG_MAX, nullptr, &stTtfb);
   const uint32_t t1 = millis();
   if (n < 4 || jpg[fi][0] != 0xFF || jpg[fi][1] != 0xD8) {
     if (n >= 0) {
@@ -290,6 +292,7 @@ static void decode_task(void *) {
         avgDt = avgDt ? (avgDt * 7 + dt * 3) / 10 : dt;
         stFps10 = 10000u / avgDt;
       }
+      if (DEBUG_LOG) Serial.printf("Bild %u: %dx%d %u B, Abruf %u (Kamera %u), Dekodieren %u ms, Heap %u, PSRAM %u\n", (unsigned)seq, w, h, (unsigned)jpgLen[fi], (unsigned)stFetch, (unsigned)stTtfb, (unsigned)stDec, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
       lastPubMs = now;
     }
     decBusy = false;
