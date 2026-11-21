@@ -431,7 +431,7 @@ void ui_setup_show() {
   ui_label_w(o, f36b, 0xeef0f4, "Einrichtung", 0, 84, SCREEN_W, LV_TEXT_ALIGN_CENTER);
   char b[96];
   ui_label_w(o, f20, 0xa9b4d0, "1. Mit diesem WLAN verbinden (Handy oder Rechner):", 0, 160, SCREEN_W, LV_TEXT_ALIGN_CENTER);
-  ui_label_w(o, f28, 0xeef0f4, "Doorbell-Display-Setup", 0, 192, SCREEN_W, LV_TEXT_ALIGN_CENTER);
+  ui_label_w(o, f28, 0xeef0f4, "Tuerspion-Display-Setup", 0, 192, SCREEN_W, LV_TEXT_ALIGN_CENTER);
   snprintf(b, sizeof b, "Kennwort: tuer%s", web_pin().c_str());
   ui_label_w(o, f28, 0x6cb8ff, b, 0, 232, SCREEN_W, LV_TEXT_ALIGN_CENTER);
   ui_label_w(o, f20, 0xa9b4d0, "2. Im Browser öffnen:", 0, 296, SCREEN_W, LV_TEXT_ALIGN_CENTER);

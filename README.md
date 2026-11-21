@@ -25,7 +25,7 @@ Fertige Datei `doorbell-display-esp32s3-lcd5.bin` (bei den Releases, sobald es e
 esptool.py --chip esp32s3 -b 921600 write_flash 0x0 doorbell-display-esp32s3-lcd5.bin
 ```
 
-1. Nach dem Start zeigt das Display die Einrichtung: mit dem WLAN `Doorbell-Display-Setup` verbinden (Kennwort steht auf dem Display), im Browser `http://192.168.4.1` öffnen, WLAN eintragen, speichern.
+1. Nach dem Start zeigt das Display die Einrichtung: mit dem WLAN `Tuerspion-Display-Setup` verbinden (Kennwort steht auf dem Display), im Browser `http://192.168.4.1` öffnen, WLAN eintragen, speichern.
 2. Danach ist die Webseite des Displays unter seiner Adresse erreichbar (Einstellungen → Dieses Display). Benutzer `display`, Kennwort ist die PIN vom Display.
 3. Unter „Verbindung ändern“ Adresse, Benutzer und Kennwort des Türspions eintragen. Auf der Startseite der Webseite oder am Display unter Einstellungen → Türspion einschalten und die Dauer wählen. „Jetzt testen“ zeigt das Bild sofort.
 

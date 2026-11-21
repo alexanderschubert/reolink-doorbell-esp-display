@@ -71,5 +71,5 @@ say "Spiele die Firmware auf …"
   || die "Aufspielen fehlgeschlagen. BOOT-Taste halten, Kabel neu einstecken, loslassen und noch einmal versuchen."
 
 say "Fertig. Das Display startet neu und zeigt die Einrichtung:"
-echo "  1. Mit dem WLAN \"Doorbell-Display-Setup\" verbinden (Kennwort steht auf dem Display)"
+echo "  1. Mit dem WLAN \"Tuerspion-Display-Setup\" verbinden (Kennwort steht auf dem Display)"
 echo "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten des Türspions eintragen"

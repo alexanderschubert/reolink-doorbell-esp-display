@@ -81,6 +81,6 @@ if ($LASTEXITCODE -ne 0) {
   if ($LASTEXITCODE -ne 0) { Fail "Aufspielen fehlgeschlagen. BOOT-Taste halten, Kabel neu einstecken, loslassen und noch einmal versuchen." }
 }
 Write-Host "`nFertig. Das Display startet neu und zeigt die Einrichtung:" -ForegroundColor Green
-Write-Host "  1. Mit dem WLAN 'Doorbell-Display-Setup' verbinden (Kennwort steht auf dem Display)"
+Write-Host "  1. Mit dem WLAN 'Tuerspion-Display-Setup' verbinden (Kennwort steht auf dem Display)"
 Write-Host "  2. Im Browser http://192.168.4.1 öffnen und WLAN und die Zugangsdaten des Türspions eintragen"
 Read-Host "`nZum Beenden Enter drücken"

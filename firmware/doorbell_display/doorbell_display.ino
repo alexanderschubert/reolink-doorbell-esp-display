@@ -28,7 +28,7 @@ void display_backlight(bool on) {
 void setup() {
   Serial.begin(115200);
   delay(1500);                                  // dem Mac Zeit geben, den USB-Anschluss zu öffnen
-  Serial.println("Reolink Doorbell Display");
+  Serial.println("Reolink Tuerspion Display");
   Serial.printf("Heap frei %u, PSRAM frei %u\n", ESP.getFreeHeap(), ESP.getFreePsram());
 
   Board *board = new Board();

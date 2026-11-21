@@ -1,0 +1,63 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax der Shell-Skripte
+        run: |
+          for f in firmware/build.sh firmware/tools/patch-lv-conf.sh firmware/flash/flash-linux.sh firmware/flash/flash-macos.command; do
+            bash -n "$f"
+          done
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: arduino-cli einrichten
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: ESP32-Kern 3.0.7
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.0.7
+
+      - name: Waveshare-Demo und Bibliotheken
+        run: |
+          curl -fsSL -o demo.zip https://files.waveshare.com/wiki/ESP32-S3-Touch-LCD-5/ESP32-S3-Touch-LCD-5-Demo.zip
+          unzip -q demo.zip -d demo
+          DEMO="$(dirname "$(find demo -type d -path '*ESP32-S3-Touch-LCD-5-Demo/Arduino' | head -1)")/Arduino"
+          echo "WAVESHARE_DEMO=$PWD/$DEMO" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/Arduino/libraries"
+          cp -R "$DEMO"/libraries/. "$HOME/Arduino/libraries/"
+          arduino-cli lib install lvgl@8.4.0
+          # LVGL sucht lv_conf.h direkt in libraries/ (neben dem lvgl-Ordner)
+          LVCONF="$HOME/Arduino/libraries/lv_conf.h"
+          if [ ! -f "$LVCONF" ]; then
+            FOUND="$(find "$HOME/Arduino/libraries" -name lv_conf.h | head -1)"
+            if [ -n "$FOUND" ]; then cp "$FOUND" "$LVCONF"
+            else sed 's/#if 0 \/\*Set it as "1" to enable content\*\//#if 1/' "$HOME/Arduino/libraries/lvgl/lv_conf_template.h" > "$LVCONF"; fi
+          fi
+          bash firmware/tools/patch-lv-conf.sh "$LVCONF"
+
+      - name: Firmware übersetzen (Release-Variante)
+        working-directory: firmware
+        run: |
+          pip install esptool
+          bash ./build.sh release
+
+      - name: Firmware als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: doorbell-display-esp32s3-lcd5
+          path: firmware/dist/doorbell-display-esp32s3-lcd5.bin

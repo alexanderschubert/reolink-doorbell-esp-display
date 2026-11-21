@@ -16,7 +16,7 @@ void net_begin() {
   if (!cfg_ok()) {                          // noch nicht eingerichtet: eigenes WLAN aufspannen, Einrichtung im Browser
     setupMode = true;
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("Doorbell-Display-Setup", ("tuer" + web_pin()).c_str());
+    WiFi.softAP("Tuerspion-Display-Setup", ("tuer" + web_pin()).c_str());
     return;
   }
   WiFi.mode(WIFI_STA);
