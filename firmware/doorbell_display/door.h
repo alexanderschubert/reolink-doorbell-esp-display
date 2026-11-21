@@ -16,4 +16,5 @@ void door_test();                           // Anzeige zum Ausprobieren starten
 void door_last_text(char *out, size_t n);       // "heute 14:32 Uhr (vor 5 min)" oder "noch keine Bewegung"
 time_t door_last_motion();                 // Zeitpunkt der letzten erkannten Bewegung (0: noch keine seit dem Start)
 const char *door_status();
+const char *door_raw();                     // letzte Antwort der Bewegungsabfrage (Fehlersuche, nur /api/door)
 const char *door_stats();                   // Größe und Zeiten des letzten Bildes (zur Fehlersuche)                  // letzter Zustand als Text (für die Einstellungen)

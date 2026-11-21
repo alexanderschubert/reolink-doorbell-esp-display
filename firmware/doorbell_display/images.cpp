@@ -212,7 +212,7 @@ static void handle_list() {
 
 static void handle_door() {
   if (!authed()) return;
-  server.send(200, "text/plain; charset=utf-8", String(door_status()) + "\n" + door_stats() + "\n");
+  server.send(200, "text/plain; charset=utf-8", String(door_status()) + "\n" + door_stats() + "\nAntwort: " + door_raw() + "\n");
 }
 
 static void handle_prefs() {

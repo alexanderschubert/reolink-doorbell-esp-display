@@ -36,7 +36,6 @@ static volatile bool dismissReq = false, testReq = false;
 static volatile uint32_t endAt = 0;         // millis, an dem die Anzeige endet
 static char status[96] = "aus";
 static char rawText[150] = "";
-static char outText[260];
 static volatile time_t lastMotionT = 0;
 static WiFiClient plain;
 static WiFiClientSecure secure;              // der Türspion hat ein selbst signiertes Zertifikat: nicht geprüft (Heimnetz)
@@ -235,11 +234,13 @@ static uint32_t lastPubMs = 0, avgDt = 0;
 static char stText[112] = "";
 
 // Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
+// Rohe Antwort der Bewegungsabfrage (nur für /api/door)
+const char *door_raw() { return rawText; }
+
 const char *door_stats() {
   if (!stBytes) strcpy(stText, "noch kein Bild geholt");
   else snprintf(stText, sizeof stText, "%dx%d, %u KB, Abruf %u ms, Dekodieren %u ms, %u.%u fps, erstes Bild nach %u ms", stW, stH, (unsigned)(stBytes / 1024), (unsigned)stFetch, (unsigned)stDec, (unsigned)(stFps10 / 10), (unsigned)(stFps10 % 10), (unsigned)stFirst);
-  snprintf(outText, sizeof outText, "%s\nAntwort: %s", stText, rawText);
-  return outText;
+  return stText;
 }
 
 // Holt ein JPEG in jpg[fi] und übergibt es dem Dekodier-Task (wartet, falls der noch am vorigen Bild arbeitet).
