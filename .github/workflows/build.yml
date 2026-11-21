@@ -50,6 +50,9 @@ jobs:
             else sed 's/#if 0 \/\*Set it as "1" to enable content\*\//#if 1/' "$HOME/Arduino/libraries/lvgl/lv_conf_template.h" > "$LVCONF"; fi
           fi
           bash firmware/tools/patch-lv-conf.sh "$LVCONF"
+          echo "--- lv_conf.h im Arduino-Ordner:"; find "$HOME/Arduino" -name 'lv_conf*.h'
+          echo "--- Monitor-Einstellungen:"; grep -rn "LV_USE_PERF_MON\|LV_USE_MEM_MON" "$HOME/Arduino/libraries" --include=*.h --include=*.cpp --include=*.c | grep -v "lvgl/src/" | head -20
+          echo "--- Waveshare-Adapter:"; grep -rn "PERF_MON\|perf_mon\|sysmon" "$WAVESHARE_DEMO/examples/09_lvgl_v8_demo" | head
 
       - name: Firmware übersetzen (Release-Variante)
         working-directory: firmware

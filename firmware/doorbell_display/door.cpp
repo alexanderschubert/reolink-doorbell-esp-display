@@ -230,7 +230,8 @@ static bool decode(const uint8_t *data, size_t n, uint16_t *out, int *w, int *h)
 static volatile uint32_t firstReq = 0;                    // millis der Anforderung, für "erstes Bild nach"
 static volatile uint32_t stFetch = 0, stDec = 0, stBytes = 0, stFirst = 0;
 static volatile int stW = 0, stH = 0;
-static uint32_t stFrames = 0, stSince = 0, stFps10 = 0;
+static volatile uint32_t stFps10 = 0;
+static uint32_t lastPubMs = 0, avgDt = 0;
 static char stText[112] = "";
 
 // Kennzahlen des letzten Bildes für die Einstellungen: Größe, Abruf- und Dekodierzeit, Bilder pro Sekunde
@@ -282,9 +283,13 @@ static void decode_task(void *) {
       prevIdx = pubIdx;
       pubW = w; pubH = h; pubIdx = wr;
       seq = seq + 1;
-      stFrames++;
       const uint32_t now = millis();
-      if (now - stSince >= 3000) { stFps10 = stFrames * 10000u / (now - stSince); stFrames = 0; stSince = now; }
+      if (seq > 1 && now > lastPubMs) {            // gleitender Mittelwert der Abstände zwischen zwei Bildern (die Anlaufzeit zählt nicht mit)
+        const uint32_t dt = now - lastPubMs;
+        avgDt = avgDt ? (avgDt * 7 + dt * 3) / 10 : dt;
+        stFps10 = 10000u / avgDt;
+      }
+      lastPubMs = now;
     }
     decBusy = false;
   }
@@ -303,7 +308,7 @@ static bool alloc_buffers() {
 // Neue Anzeige beginnen: wartet auf den Dekodier-Task und setzt die Zähler zurück.
 static void start_session(uint32_t now) {
   while (decBusy) vTaskDelay(1);
-  firstReq = now; want = true; seq = 0; pubIdx = -1; prevIdx = -1; stFrames = 0; stSince = now; stFps10 = 0;
+  firstReq = now; want = true; seq = 0; pubIdx = -1; prevIdx = -1; lastPubMs = 0; avgDt = 0; stFps10 = 0;
 }
 
 static void task(void *) {
@@ -323,7 +328,8 @@ static void task(void *) {
       testReq = false;
       if (alloc_buffers()) { start_session(now); start = lastMotion = now; noFrameSince = now; endAt = now + cfg.dsecs * 1000u; }
     }
-    if (now - lastPoll >= (want ? 3000u : 1000u)) {
+    const bool farFromEnd = want && (int32_t)(endAt - now) > 6000;   // Ende noch weit weg: seltener fragen, jede Abfrage kostet ein Bild
+    if (now - lastPoll >= (want ? (farFromEnd ? 6000u : 3000u) : 1000u)) {
       lastPoll = now;
       const int m = poll_motion();
       if (m == 0) armed = true;
